@@ -1,0 +1,119 @@
+@import "tailwindcss";
+
+:root {
+  --paper: #EEF0F3;
+  --slab: #FFFFFF;
+  --sunk: #E3E6EC;
+  --ink: #14161C;
+  --ink-soft: #555C6B;
+  --ink-faint: #878E9D;
+  --rule: #D2D7E0;
+  --accent: #2B3BD0;
+  --accent-soft: #E6E8FB;
+  --signal: #A33318;
+  --signal-soft: #F8E7E1;
+  --good: #11674A;
+  --good-soft: #DFF0E8;
+  --warn: #7A5600;
+  --warn-soft: #F7EEDA;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #0E1017;
+    --slab: #1A1D26;
+    --sunk: #12141B;
+    --ink: #E4E6EB;
+    --ink-soft: #9DA3B0;
+    --ink-faint: #6B7280;
+    --rule: #2A2D38;
+    --accent: #7B8AFF;
+    --accent-soft: #1E2254;
+    --signal: #EF6B4A;
+    --signal-soft: #3D1810;
+    --good: #34D399;
+    --good-soft: #0D3324;
+    --warn: #F5C842;
+    --warn-soft: #3D2E00;
+    color-scheme: dark;
+  }
+}
+
+:root[data-theme="dark"] {
+  --paper: #0E1017;
+  --slab: #1A1D26;
+  --sunk: #12141B;
+  --ink: #E4E6EB;
+  --ink-soft: #9DA3B0;
+  --ink-faint: #6B7280;
+  --rule: #2A2D38;
+  --accent: #7B8AFF;
+  --accent-soft: #1E2254;
+  --signal: #EF6B4A;
+  --signal-soft: #3D1810;
+  --good: #34D399;
+  --good-soft: #0D3324;
+  --warn: #F5C842;
+  --warn-soft: #3D2E00;
+  color-scheme: dark;
+}
+
+@theme inline {
+  --color-paper: var(--paper);
+  --color-slab: var(--slab);
+  --color-sunk: var(--sunk);
+  --color-ink: var(--ink);
+  --color-ink-soft: var(--ink-soft);
+  --color-ink-faint: var(--ink-faint);
+  --color-rule: var(--rule);
+  --color-accent: var(--accent);
+  --color-accent-soft: var(--accent-soft);
+  --color-signal: var(--signal);
+  --color-signal-soft: var(--signal-soft);
+  --color-good: var(--good);
+  --color-good-soft: var(--good-soft);
+  --color-warn: var(--warn);
+  --color-warn-soft: var(--warn-soft);
+}
+
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+}
+
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: var(--sunk); }
+::-webkit-scrollbar-thumb { background: var(--ink-faint); border-radius: 3px; }
+
+/* Pulse animation for findings */
+@keyframes pulse-signal {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+.animate-pulse-signal { animation: pulse-signal 2s ease-in-out infinite; }
+
+/* Hop animation */
+@keyframes hop-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-hop { animation: hop-in 0.4s ease-out; }
+
+/* Vera glyph states */
+@keyframes vera-breathe {
+  0%, 100% { opacity: 0.3; transform: scale(1); }
+  50% { opacity: 0.5; transform: scale(1.02); }
+}
+@keyframes vera-wake {
+  from { opacity: 0.3; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+@keyframes vera-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 var(--accent); }
+  50% { box-shadow: 0 0 12px 4px var(--accent); }
+}
+
+.vera-dormant { animation: vera-breathe 4s ease-in-out infinite; }
+.vera-waking { animation: vera-wake 0.6s ease-out forwards; }
+.vera-speaking { animation: vera-pulse 1.5s ease-in-out infinite; }
