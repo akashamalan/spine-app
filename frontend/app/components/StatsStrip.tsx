@@ -66,6 +66,7 @@ export function StatsStrip({
   resolvedThisWeek,
   activeFilter,
   onToggleFilter,
+  columns = 2,
 }: {
   busFactorCount: number;
   orphanCount: number;
@@ -73,7 +74,10 @@ export function StatsStrip({
   /** Null until the first read lands; distinct from a genuine zero. */
   resolvedThisWeek: number | null;
   activeFilter: FilterKind | null;
-  onToggleFilter: (f: FilterKind) => void;
+  /** Left out where the tiles are only for reading (the Facts window). */
+  onToggleFilter?: (f: FilterKind) => void;
+  /** Tiles per row: 2 in a narrow panel, 3 where there is room. */
+  columns?: 2 | 3;
 }) {
   const freshPct = useMemo(() => {
     if (claims.length === 0) return null;
@@ -139,7 +143,7 @@ export function StatsStrip({
   if (tiles.length === 0) return null;
 
   return (
-    <div role="group" aria-label="Live numbers" className="grid shrink-0 grid-cols-2 gap-1.5 px-5 pt-4 pb-3">
+    <div role="group" aria-label="Live numbers" className={`grid shrink-0 gap-1.5 px-5 pt-4 pb-3 ${columns === 3 ? "grid-cols-3" : "grid-cols-2"}`}>
       {tiles.map((t) => (
         <TileButton
           key={t.key}

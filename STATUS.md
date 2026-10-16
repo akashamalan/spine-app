@@ -1,42 +1,35 @@
 # STATUS (overwritten after each tier)
 
-Last updated: after TIER 2 (commit `os-2`). Order of work: Tier 1 done earlier, then 4, then 2, then 3.
+Last updated: end of the run (Tiers 4, 2, 3 done; Tier 5 not started). Commits: os-1, os-4, os-2, os-3.
 
 ## Done
-- Tier 2 (os-2): right-click engine (`os/context/*`), all menus (wallpaper, title bar, dock, graph person/service/
-  document/team/canvas, finding row, answer text, evidence row), confidence-math + why-flagged + person-card popovers,
-  Getting started (once per browser, `spine-onboarded`), Settings (motion, wallpaper, layout, person, About),
-  Help menu, `askSpine`, `lib/uiPrefs.ts`, `lib/motion.ts` (one reduce-motion flag; Settings toggle feeds it).
-  Backend: `/api/claims` now also returns `source_count` (read-only; the input behind the boost).
-  Verified in the browser: every menu opens with its items, native menu kept in inputs and with Shift, the math
-  popovers multiply out (95% x0.75 x1.00 = 71%; 88% x0.51 x1.00 = 45%), all 6 sample questions complete.
-- Tier 1 (os-1): windows, dock, menu bar, Vera bounce + notification.
-- Tier 4 (os-4): roles + simulation.
-  - Backend: `backend/auth.py` (`current_user`, `require_admin`), `backend/simulate.py`
-    (`/api/simulate/{person_leaves,time_passes,docs_conflict,orphan_service,reset}`, admin-only),
-    `/api/reflexes/run` and `/api/vera/ask` admin-only, `/api/vera/probes` filtered per person
-    and now returns `aimed_at` + `asked_of`.
-  - Frontend: `lib/identity.ts` (store + `apiFetch` sending X-Spine-* headers), `components/WhoAreYou.tsx`,
-    identity chip + "Switch person" in the menu bar, `os/apps/Simulation.tsx`, role-aware dock/menus,
-    `useSpine` got `simulate`, `lastSim`, `probesReady`, debounced probe refresh on each streamed finding.
-  - Verified live: viewer gets 403 on simulate/reflexes/vera-ask; Dana (viewer) sees 3 of 12 questions;
-    "person leaves" produced new findings with no refresh, Vera icon hopped exactly twice, notification card shown.
-  - `tsc`, `lint`, `next build` clean.
+- Tier 1 (os-1): windows (drag by title bar, minimize into the dock, maximize, saved layout), React Bits dock,
+  menu bar, Vera bounce + notification.
+- Tier 4 (os-4): demo roles (`backend/auth.py`, `lib/identity.ts`, `components/WhoAreYou.tsx`), admin-only
+  `/api/reflexes/run`, `/api/vera/ask`, `/api/simulate/*` (real 403 for viewers), per-person Vera inbox,
+  Simulation window (`os/apps/Simulation.tsx`, `backend/simulate.py`), Reset rebuilds the seed (~35 s).
+- Tier 2 (os-2): right-click engine + every menu (`os/context/*`), confidence-math / why-flagged / person popovers,
+  Getting started (once per browser), Settings, Help menu, `lib/uiPrefs.ts`, `lib/motion.ts`.
+- Tier 3 (os-3): Directory, Facts, Activity windows (`os/apps/*`), `lib/useVeraHistory.ts`.
+  Facts: least trusted first, replaced facts labelled, dock badge = "probably outdated". Activity (admin only): findings,
+  Vera questions, each person's raw words next to the replaced fact + "Only a person's answer changed this fact."
+  Directory and Facts are for everyone; Activity and Simulation are admin-only.
+- Read-only backend additions: `/api/claims` -> `source_count`; `/api/entities` now includes Documents (+ created_at, tier);
+  `/api/vera/history` -> `asked_at`, `subject_id`, `claim_id`; admin `GET /api/simulate/history`;
+  recorded answerers are names (`_who`), never ids.
+- Checks at the end of the run: `tsc` clean, `lint` clean, `next build` clean. The graph was left at the clean seed.
 
 ## Half-done / not started
-- Tier 3 (Directory, Facts, Activity apps): NOT started. Endpoints `/api/people`, `/api/entities`,
-  `/api/claims`, `/api/vera/history` already exist. `SimulationRun` nodes exist in the graph for the Activity feed.
-- Tier 5: not requested.
+- Tier 5 (Query console, Demo director): not started (not requested).
+- Nothing hidden: every app had real data.
 
 ## Known bugs / notes
 - Person-menu questions ("What does X own?", "What breaks if X leaves?", "Who took over from X?") run, but the answer
-  engine only resolves systems, so it answers "no information". Fix belongs in `backend/tools/answer_tools.py`
-  (give Person subjects an OWNS-out / blast-radius walk). Not done: Tier 2 only allowed read-only backend changes.
-- Wallpaper menu "Wallpaper" mood changes the one canvas's speed/flicker live (no remount).
-- "Priya leaves" is impossible: Priya already left in the seed (`left_at` 94 days ago). The button uses the
-  active person who owns the most (a dropdown picks anyone else).
-- Reset takes ~35 s (re-embeds claims); the graph answers 503 briefly while it rebuilds.
-- Backend must run on port **8004** (frontend `.env.local`): `PYTHONPATH=. python -m uvicorn backend.main:app --port 8004`.
-- Dev server: `cd frontend && npm run dev` (port 3000). `?layout=reset` restores the window layout.
-- Reset also wipes any real Vera answers given before it.
-- A viewer's saved layout may mention the admin-only window; it is simply not rendered for them.
+  engine only resolves systems, so it replies "no information". Fix in `backend/tools/answer_tools.py` (give Person
+  subjects an OWNS-out / blast-radius walk). Not done: only read-only backend changes were allowed.
+- "Priya leaves" is impossible: Priya already left in the seed. The Simulation button uses whoever owns the most.
+- Reset wipes real Vera answers too. It takes ~35 s and the graph answers 503 briefly.
+- Backend must run on port 8004 (frontend `.env.local`): `PYTHONPATH=. python -m uvicorn backend.main:app --port 8004`.
+  Frontend: `cd frontend && npm run dev` (port 3000). `?layout=reset` restores the window layout.
+- The Vera notification card sits top-right and covers the top of the Vera list for up to 8 s.
+- Activity "SPINE noticed" times are the last time a scan re-confirmed a finding (reflexes refresh `found_at`).

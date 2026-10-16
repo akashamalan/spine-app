@@ -156,6 +156,8 @@ export function Home({ welcomeDone }: { welcomeDone: boolean }) {
   const bridge = useMemo<ShellBridge>(
     () => ({
       claims: spine.claims,
+      findings,
+      resolvedThisWeek: spine.resolvedThisWeek,
       evidence: spine.evidence,
       ask: askQuestion,
       askProblem,
@@ -171,7 +173,7 @@ export function Home({ welcomeDone }: { welcomeDone: boolean }) {
     }),
     // askQuestion closes over the latest question state; it is rebuilt each render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [spine.claims, spine.evidence, askProblem, spine.notify, spine.veraAsk, spine.feedback, spine.setSelectedFinding, spine.isAsking, blocked, recent]
+    [spine.claims, findings, spine.resolvedThisWeek, spine.evidence, askProblem, spine.notify, spine.veraAsk, spine.feedback, spine.setSelectedFinding, spine.isAsking, blocked, recent]
   );
 
   const urgentCount = findings.filter((f) => severityLabel(f.severity) === "Urgent").length;

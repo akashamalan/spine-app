@@ -641,6 +641,7 @@ export function useSpine(): Spine {
           body: JSON.stringify({
             probe_id: probeId,
             answer: text,
+            answered_by: getIdentity()?.name,
           }),
         });
         const data = await res.json().catch(() => null);

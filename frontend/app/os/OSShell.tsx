@@ -13,6 +13,10 @@ import { VeraNotifications } from "./Notifications";
 import { Window } from "./Window";
 import { GettingStarted } from "./apps/GettingStarted";
 import { Settings } from "./apps/Settings";
+import { Directory } from "./apps/Directory";
+import { Facts } from "./apps/Facts";
+import { Activity } from "./apps/Activity";
+import { useVeraHistory } from "../lib/useVeraHistory";
 import { ContextMenuProvider, useContextMenu } from "./context/ContextMenuProvider";
 import { ActionsProvider, type Actions, type GraphApi } from "./context/actions";
 import { useMenus } from "./context/menus";
@@ -33,6 +37,8 @@ export type OSPanels = {
  * windows and menus can act without knowing how the app is wired. */
 export type ShellBridge = {
   claims: Claim[];
+  findings: Finding[];
+  resolvedThisWeek: number | null;
   evidence: Evidence[];
   /** Submit a question. */
   ask: (q: string) => void;
@@ -119,7 +125,7 @@ function Shell({
     });
   }, [reveal]);
 
-  const { ask, askProblem, notify, claims, evidence, highlight: setFocusId, showFinding, graphApi, veraAsk, feedback } = bridge;
+  const { ask, askProblem, notify, claims, findings, resolvedThisWeek, evidence, highlight: setFocusId, showFinding, graphApi, veraAsk, feedback } = bridge;
 
   // Everything a right-click menu may do, in one object. `askSpine` is the
   // one way any menu or button asks a question: it makes sure the places the
@@ -223,9 +229,15 @@ function Shell({
     return () => clearTimeout(t);
   }, [highlight]);
 
+  // Re-read the apps' data whenever something new arrives on the stream.
+  const refreshKey = `${findings.length}:${probes.length}`;
+  const { items: history } = useVeraHistory(refreshKey);
+
   const badge = (id: WinId) => {
     if (id === "vera") return probes.length;
     if (id === "noticed") return urgentCount;
+    // Facts "probably outdated": below the 60% floor, as the Facts window labels them.
+    if (id === "facts") return claims.filter((c) => c.confidence < 0.6).length;
     return 0;
   };
 
@@ -258,6 +270,9 @@ function Shell({
     answer: panels.answer,
     ask: <div data-ask-root>{panels.ask}</div>,
     sim: panels.sim,
+    directory: <Directory refreshKey={refreshKey} />,
+    facts: <Facts claims={claims} findings={findings} resolvedThisWeek={resolvedThisWeek} history={history} />,
+    activity: <Activity findings={findings} probes={probes} history={history} isAdmin={isAdmin} refreshKey={refreshKey} />,
     start: <GettingStarted onAsk={(q) => actions.askSpine(q, { source: "getting-started" })} onSkip={() => close("start")} />,
     settings: <Settings identity={identity} onSwitchPerson={onSwitchPerson} onResetLayout={tidy} />,
     vera: (

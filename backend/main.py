@@ -1081,7 +1081,7 @@ async def vera_respond(resp: VeraResponse, request: Request):
            SET r.verdict = $verdict, r.changes = $changes,
                r.answered_by = $by""",
         {"rid": response_id, "verdict": verdict, "changes": changes,
-         "by": resp.answered_by or request.headers.get("x-spine-person")},
+         "by": _who(request, resp.answered_by)},
     )
 
     return {
@@ -1163,6 +1163,12 @@ async def get_entity(entity_id: str):
 # ══════════════════════════════════════════════════════════════════════════
 # Job 3.2 — endpoints the UI needs
 # ══════════════════════════════════════════════════════════════════════════
+
+def _who(request: Request, explicit: str | None = None) -> str | None:
+    """Who did this, in words a person would use: a name, never an id."""
+    user = current_user(request)
+    return explicit or user.name or user.person_id
+
 
 def _initials(name: str | None) -> str:
     parts = [p for p in (name or "").replace("-", " ").split() if p]
@@ -1276,13 +1282,15 @@ async def list_entities():
     """Lightweight list for @mentions and autocomplete."""
     r = ro_query(
         """MATCH (n)
-           WHERE n:System OR n:Person OR n:Team OR n:Project OR n:Decision
+           WHERE n:System OR n:Person OR n:Team OR n:Project OR n:Decision OR n:Document
            RETURN n.id, labels(n)[0],
-                  CASE WHEN n.name IS NOT NULL THEN n.name ELSE n.title END"""
+                  CASE WHEN n.name IS NOT NULL THEN n.name ELSE n.title END,
+                  n.created_at, n.tier"""
     )
     entities = [
-        {"id": eid, "type": typ, "name": name}
-        for eid, typ, name in r.result_set if name
+        # created_at (documents) and tier (systems) are null for the rest.
+        {"id": eid, "type": typ, "name": name, "created_at": created, "tier": tier}
+        for eid, typ, name, created, tier in r.result_set if name
     ]
     entities.sort(key=lambda e: (e["type"], e["name"].lower()))
     return {"entities": entities, "count": len(entities)}
@@ -1350,7 +1358,7 @@ async def submit_feedback(fb: FeedbackRequest, request: Request):
         )
 
     now = now_epoch()
-    person = fb.person or request.headers.get("x-spine-person")
+    person = _who(request, fb.person)
     targets, skipped = [], []
     for cid in dict.fromkeys(fb.claim_ids):
         exists, superseded, text = _claim_state(cid)
@@ -1414,15 +1422,19 @@ async def vera_history(limit: int = Query(50, ge=1, le=500)):
            RETURN vt.id, vt.question, c.text,
                   CASE WHEN t.name IS NOT NULL THEN t.name ELSE t.id END,
                   CASE WHEN r.raw_text IS NOT NULL THEN r.raw_text ELSE r.answer END,
-                  r.verdict, r.changes, r.answered_by, r.answered_at, newer.text
+                  r.verdict, r.changes, r.answered_by, r.answered_at, newer.text,
+                  vt.created_at, t.id, c.id
            ORDER BY r.answered_at DESC
            LIMIT $limit""",
         {"limit": limit},
     )
     items = []
     for (task_id, question, claim_text, subject, raw, verdict, changes,
-         by, at, replaced_by) in r.result_set:
+         by, at, replaced_by, asked_at, subject_id, claim_id) in r.result_set:
         items.append({
+            "asked_at": asked_at,
+            "subject_id": subject_id,
+            "claim_id": claim_id,
             "task_id": task_id,
             "question": question,
             "subject": subject,
@@ -1449,7 +1461,7 @@ async def vera_ask(req: VeraAskRequest, request: Request, _: User = Depends(requ
         raise HTTPException(400, "claim_ids must list at least one claim to verify.")
 
     now = now_epoch()
-    by = req.requested_by or request.headers.get("x-spine-person")
+    by = _who(request, req.requested_by)
     results = []
     for cid in dict.fromkeys(req.claim_ids):
         exists, superseded, text = _claim_state(cid)

@@ -30,7 +30,7 @@ type Category = (typeof CATEGORIES)[number];
 type Filter = Category | "watching" | null;
 
 /** Which chip a finding counts under (a bus-factor with nobody left is an orphan). */
-function categoryOf(f: Finding): string {
+export function categoryOf(f: Finding): string {
   return findingTitle(f) === findingLabel("orphan") ? "orphan" : f.kind;
 }
 

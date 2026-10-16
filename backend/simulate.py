@@ -289,6 +289,17 @@ async def _guarded(fn, *args) -> dict:
         _lock.release()
 
 
+@router.get("/history")
+async def history(limit: int = 50, _: User = Depends(require_admin)):
+    """Past simulation runs, newest first. Read-only; feeds the Activity feed."""
+    rows = ro_query(
+        """MATCH (s:SimulationRun) RETURN s.id, s.scenario, s.at, s.summary
+           ORDER BY s.at DESC LIMIT $limit""",
+        {"limit": max(1, min(limit, 200))},
+    ).result_set
+    return {"runs": [{"id": r[0], "scenario": r[1], "at": r[2], "summary": r[3]} for r in rows]}
+
+
 @router.post("/person_leaves")
 async def person_leaves(body: LeaveBody | None = None, _: User = Depends(require_admin)):
     return await _guarded(_person_leaves, (body.person_id if body else None))

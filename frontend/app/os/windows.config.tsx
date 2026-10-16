@@ -1,6 +1,17 @@
 "use client";
 
-import { Compass, FlaskConical, MessageSquare, Network, Settings as Gear, Sparkles, TriangleAlert } from "lucide-react";
+import {
+  Activity as Pulse,
+  Compass,
+  FlaskConical,
+  ListChecks,
+  MessageSquare,
+  Network,
+  Settings as Gear,
+  Sparkles,
+  TriangleAlert,
+  Users,
+} from "lucide-react";
 import type { ReactNode } from "react";
 import type { WinId } from "./presets";
 
@@ -38,6 +49,9 @@ export const WINDOWS: WinMeta[] = [
   { id: "answer", title: "The answer", short: "The answer", icon: <MessageSquare aria-hidden size={SIZE} />, accel: 4 },
   { id: "vera", title: "Vera", short: "Vera", icon: <VeraMark />, accel: 5 },
   { id: "sim", title: "Simulation", short: "Simulation", icon: <FlaskConical aria-hidden size={SIZE} />, accel: 6, admin: true },
+  { id: "directory", title: "Directory", short: "Directory", icon: <Users aria-hidden size={SIZE} />, accel: 9 },
+  { id: "facts", title: "Facts", short: "Facts", icon: <ListChecks aria-hidden size={SIZE} />, accel: 0 },
+  { id: "activity", title: "Activity", short: "Activity", icon: <Pulse aria-hidden size={SIZE} />, admin: true },
   { id: "start", title: "Getting started", short: "Getting started", icon: <Compass aria-hidden size={SIZE} />, accel: 7 },
   { id: "settings", title: "Settings", short: "Settings", icon: <Gear aria-hidden size={SIZE} />, accel: 8 },
 ];
@@ -59,4 +73,4 @@ function VeraMark() {
 }
 
 /** The dock's running order, with the dividers between its groups. */
-export const DOCK_ORDER: (WinId | "divider")[] = ["ask", "graph", "noticed", "answer", "vera", "divider", "sim", "divider", "settings"];
+export const DOCK_ORDER: (WinId | "divider")[] = ["ask", "graph", "noticed", "answer", "vera", "divider", "directory", "facts", "activity", "divider", "sim", "divider", "settings"];

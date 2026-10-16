@@ -215,7 +215,7 @@ export function MenuBar({
         setOpenName={setOpenName}
         rows={WINDOWS.filter((w) => allowed.includes(w.id)).map((w) => ({
           label: w.short,
-          shortcut: w.accel ? `Alt+${w.accel}` : undefined,
+          shortcut: w.accel !== undefined ? `Alt+${w.accel}` : undefined,
           checked: state.wins[w.id].open,
           onSelect: () => open(w.id),
         }))}

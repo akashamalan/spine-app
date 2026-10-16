@@ -2,7 +2,7 @@
  * kept on screen. Presets are percentages of the desktop area so the first
  * load looks the same on any monitor. */
 
-export type WinId = "noticed" | "graph" | "answer" | "ask" | "vera" | "sim" | "start" | "settings";
+export type WinId = "noticed" | "graph" | "answer" | "ask" | "vera" | "sim" | "start" | "settings" | "directory" | "facts" | "activity";
 
 export type Rect = { x: number; y: number; w: number; h: number };
 
@@ -36,6 +36,9 @@ export const PRESETS: Record<WinId, Preset> = {
   sim: { pct: { x: 29, y: 4, w: 42, h: 92 }, open: false },
   start: { pct: { x: 30, y: 10, w: 40, h: 80 }, open: false },
   settings: { pct: { x: 32, y: 10, w: 36, h: 80 }, open: false },
+  directory: { pct: { x: 28, y: 8, w: 44, h: 84 }, open: false },
+  facts: { pct: { x: 28, y: 8, w: 44, h: 84 }, open: false },
+  activity: { pct: { x: 28, y: 8, w: 44, h: 84 }, open: false },
 };
 
 export const WIN_IDS = Object.keys(PRESETS) as WinId[];
