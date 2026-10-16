@@ -13,6 +13,7 @@ import type {
   Toast,
   VeraProbe,
 } from "./types";
+import { isSubgraphResponse, type Subgraph } from "../components/graph/model";
 
 export const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
@@ -85,6 +86,10 @@ export type Spine = {
   isScanning: boolean;
   backend: BackendStatus;
   stats: GraphStats;
+  /** The whole company, for the idle graph. Null until it has loaded. */
+  companyMap: Subgraph | null;
+  /** True when the company map could not be loaded. */
+  companyMapFailed: boolean;
   /** Walk the graph for an answer. Ignored while another ask is running. */
   ask: (question: string) => Promise<void>;
   /** Abort the running ask. Whatever already arrived stays on screen. */
@@ -129,6 +134,8 @@ export function useSpine(): Spine {
     llmOk: true,
     message: null,
   });
+  const [companyMap, setCompanyMap] = useState<Subgraph | null>(null);
+  const [companyMapFailed, setCompanyMapFailed] = useState(false);
   const [streamEpoch, setStreamEpoch] = useState(0);
   const lastGraphRef = useRef<BackendStatus["graph"]>("unknown");
   const findingsRef = useRef<Finding[]>([]);
@@ -285,6 +292,27 @@ export function useSpine(): Spine {
       askAbortRef.current?.abort();
     };
   }, []);
+
+  // The idle company map, loaded once the graph is reachable. It lives here,
+  // not in the graph panel, so closing and reopening the panel never refetches.
+  const graphUp = backend.graph === "up";
+  useEffect(() => {
+    if (!graphUp) return;
+    let cancelled = false;
+    fetch(`${API_BASE}/api/graph/overview`)
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`overview ${r.status}`))))
+      .then((data: unknown) => {
+        if (cancelled) return;
+        if (isSubgraphResponse(data)) {
+          setCompanyMap(data);
+          setCompanyMapFailed(false);
+        } else setCompanyMapFailed(true);
+      })
+      .catch(() => !cancelled && setCompanyMapFailed(true));
+    return () => {
+      cancelled = true;
+    };
+  }, [graphUp]);
 
   // Evidence carries no dates; /api/claims does. Best effort: no dates, no fuss.
   const loadFactDates = useCallback(() => {
@@ -496,6 +524,8 @@ export function useSpine(): Spine {
     isScanning,
     backend,
     stats,
+    companyMap,
+    companyMapFailed,
     ask,
     stopAsking,
     scan,

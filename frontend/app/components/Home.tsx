@@ -92,6 +92,8 @@ export function Home({ welcomeDone }: { welcomeDone: boolean }) {
             status={spine.askStatus}
             highlightId={selectedFinding?.target_id ?? null}
             backendUp={backend.graph === "up"}
+            companyMap={spine.companyMap}
+            companyMapFailed={spine.companyMapFailed}
           />
         }
         answer={

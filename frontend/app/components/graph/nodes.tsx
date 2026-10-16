@@ -14,6 +14,10 @@ export type NodeData = {
   dim?: boolean;
   highlight?: boolean;
   flagged?: boolean;
+  /** Pop in on arrival after this many ms. Unset: just appear (idle map, reduced motion). */
+  enter?: number;
+  /** Beat the red ring twice on arrival (flagged nodes, motion allowed). */
+  pulse?: boolean;
 };
 
 export type SpineNode = Node<NodeData>;
@@ -100,7 +104,17 @@ function Tooltip({ text }: { text: string }) {
 function shell(data: NodeData, extra = "") {
   return `group relative transition-[transform,opacity] duration-200 hover:-translate-y-0.5 ${
     data.dim ? "opacity-35" : "opacity-100"
-  } ${extra}`;
+  } ${data.enter !== undefined ? "spine-pop" : ""} ${extra}`;
+}
+
+function enterStyle(data: NodeData) {
+  return data.enter !== undefined ? { animationDelay: `${data.enter}ms` } : undefined;
+}
+
+/** The red ring's two beats, timed to start as the node finishes landing. */
+function FlagPulse({ data }: { data: NodeData }) {
+  if (!data.pulse || !data.flagged) return null;
+  return <span aria-hidden className="spine-flag-pulse" style={{ animationDelay: `${(data.enter ?? 0) + 250}ms` }} />;
 }
 
 // ── Person ───────────────────────────────────────────────────────────────
@@ -167,7 +181,7 @@ export function PersonNode({ data }: NodeProps<SpineNode>) {
 
   const size = n.is_focus ? 62 : 44;
   return (
-    <div className={shell(data, "flex w-[120px] flex-col items-center")} aria-label={sentence}>
+    <div className={shell(data, "flex w-[120px] flex-col items-center")} style={enterStyle(data)} aria-label={sentence}>
       <Anchors />
       <Tooltip text={sentence} />
       <Badges n={n} />
@@ -179,6 +193,7 @@ export function PersonNode({ data }: NodeProps<SpineNode>) {
         }`}
         style={{ width: size, height: size }}
       >
+        <FlagPulse data={data} />
         {!ghost && <ConfidenceRing confidence={n.confidence} size={size} />}
         <span
           className={`grid place-items-center rounded-full font-semibold ${
@@ -210,17 +225,18 @@ export function ServiceNode({ data }: NodeProps<SpineNode>) {
   const sentence = nodeSentence(n);
   const chip = data.variant === "chip";
   return (
-    <div className={shell(data)} aria-label={sentence}>
+    <div className={shell(data)} style={enterStyle(data)} aria-label={sentence}>
       <Anchors />
       <Tooltip text={sentence} />
       {!chip && <Badges n={n} />}
       <div
-        className={`flex items-center gap-2 rounded-full border bg-[rgba(24,26,36,0.78)] ${
+        className={`relative flex items-center gap-2 rounded-full border bg-[rgba(24,26,36,0.78)] ${
           chip ? "h-[34px] w-[158px] px-3" : n.is_focus ? "h-[52px] px-5" : "h-[40px] px-4"
         } ${data.flagged ? "border-stale/80 shadow-[0_0_0_3px_rgba(255,69,58,0.35)]" : "border-white/20"} ${
           data.highlight ? "shadow-[0_0_0_3px_var(--primary)]" : ""
         } ${n.is_focus ? "shadow-[0_0_28px_8px_rgba(10,132,255,0.35)] border-primary/70" : ""}`}
       >
+        {!chip && <FlagPulse data={data} />}
         <Server aria-hidden size={chip ? 14 : n.is_focus ? 20 : 16} className="shrink-0 text-white/75" />
         <span
           className={`truncate whitespace-nowrap font-medium text-white ${
@@ -247,15 +263,16 @@ export function DocumentNode({ data }: NodeProps<SpineNode>) {
   const ageDot = months === null ? "" : months >= 12 ? "bg-stale" : months >= 6 ? "bg-aging" : "bg-fresh";
   const sentence = nodeSentence(n);
   return (
-    <div className={shell(data)} aria-label={sentence}>
+    <div className={shell(data)} style={enterStyle(data)} aria-label={sentence}>
       <Anchors />
       <Tooltip text={sentence} />
       <Badges n={n} />
       <div
-        className={`flex w-[180px] flex-col gap-1 rounded-2xl border bg-[rgba(24,26,36,0.78)] px-3 py-2 ${
+        className={`relative flex w-[180px] flex-col gap-1 rounded-2xl border bg-[rgba(24,26,36,0.78)] px-3 py-2 ${
           data.flagged ? "border-stale/70" : "border-white/18"
         } ${data.highlight ? "shadow-[0_0_0_3px_var(--primary)]" : ""}`}
       >
+        <FlagPulse data={data} />
         <span className="flex items-start gap-1.5">
           <FileText aria-hidden size={14} className="mt-0.5 shrink-0 text-white/70" />
           <span className="line-clamp-2 text-[13px] font-medium leading-snug text-white">{n.label}</span>

@@ -1,8 +1,8 @@
 "use client";
 
-import { BaseEdge, EdgeLabelRenderer, getStraightPath, type Edge, type EdgeProps } from "@xyflow/react";
+import { EdgeLabelRenderer, getStraightPath, type Edge, type EdgeProps } from "@xyflow/react";
 import { Zap } from "lucide-react";
-import type { CSSProperties } from "react";
+import { useEffect, useRef, type CSSProperties } from "react";
 
 export type EdgeKind = "normal" | "stale" | "superseded" | "path" | "contradiction" | "left";
 
@@ -13,6 +13,10 @@ export type EdgeData = {
   /** The full sentence behind it (a claim), shown on hover. */
   detail?: string;
   dim?: boolean;
+  /** Draw the line in (ms delay). Unset: it simply appears. */
+  draw?: number;
+  /** Send one light along this line (ms delay). Only ever set on one edge. */
+  travel?: number;
 };
 
 export type SpineEdge = Edge<EdgeData>;
@@ -28,18 +32,60 @@ const STYLE: Record<EdgeKind, CSSProperties> = {
   left: { stroke: "rgba(255,255,255,0.35)", strokeWidth: 2, strokeDasharray: "4 5" },
 };
 
+const TRAVEL_MS = 700;
+
+/**
+ * One light along the line, once. SMIL timing is relative to when the SVG
+ * was created, so an animation added later with begin="0s" would count as
+ * already over; it is started explicitly instead.
+ */
+function Traveller({ path, delay }: { path: string; delay: number }) {
+  const motion = useRef<SVGAnimateMotionElement>(null);
+  const fade = useRef<SVGAnimateElement>(null);
+  useEffect(() => {
+    const t = setTimeout(() => {
+      motion.current?.beginElement();
+      fade.current?.beginElement();
+    }, delay);
+    return () => clearTimeout(t);
+  }, [delay]);
+  return (
+    <circle r={4.5} fill="#cfe4ff" opacity={0} style={{ filter: "drop-shadow(0 0 6px #0A84FF)" }}>
+      <animateMotion ref={motion} begin="indefinite" dur={`${TRAVEL_MS}ms`} path={path} fill="freeze" />
+      <animate
+        ref={fade}
+        attributeName="opacity"
+        begin="indefinite"
+        dur={`${TRAVEL_MS}ms`}
+        values="0;1;1;0"
+        keyTimes="0;0.15;0.8;1"
+        fill="remove"
+      />
+    </circle>
+  );
+}
+
 export function SpineEdgeView({ id, sourceX, sourceY, targetX, targetY, data }: EdgeProps<SpineEdge>) {
   const kind = data?.kind ?? "normal";
   const [path, labelX, labelY] = getStraightPath({ sourceX, sourceY, targetX, targetY });
   const showLabel = (kind === "path" || kind === "contradiction") && data?.label;
   const hoverText = data?.detail ?? (kind === "superseded" ? "replaced" : data?.label);
+  const drawing = data?.draw !== undefined;
 
   return (
     <g style={{ opacity: data?.dim ? 0.35 : 1, transition: "opacity 0.4s" }}>
       {hoverText && <title>{hoverText}</title>}
       {/* Wide invisible stroke so the hover tooltip is easy to hit. */}
       <path d={path} fill="none" stroke="transparent" strokeWidth={14} />
-      <BaseEdge id={id} path={path} style={STYLE[kind]} />
+      <path
+        id={id}
+        d={path}
+        fill="none"
+        className={`react-flow__edge-path${drawing ? " spine-draw" : ""}`}
+        pathLength={drawing ? 1 : undefined}
+        style={{ ...STYLE[kind], ...(drawing ? { animationDelay: `${data!.draw}ms` } : {}) }}
+      />
+      {data?.travel !== undefined && <Traveller key={id} path={path} delay={data.travel} />}
       {(showLabel || kind === "contradiction") && (
         <EdgeLabelRenderer>
           <div
