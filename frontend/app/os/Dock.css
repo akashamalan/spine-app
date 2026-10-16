@@ -1,0 +1,171 @@
+/* Dock chrome. Adapted from the React Bits Dock (MIT + Commons Clause,
+   (c) 2026 David Haz) — cut down to one edge, one theme, and SPINE's glass.
+   Sizes are written inline by the magnification loop; everything that does
+   not change frame to frame lives here. */
+
+.dock {
+  position: fixed;
+  bottom: 14px;
+  left: 50%;
+  z-index: 60;
+  display: flex;
+  align-items: flex-end;
+  gap: var(--dock-gap);
+  box-sizing: border-box;
+  padding: var(--dock-pad);
+  border-radius: calc(16px + var(--dock-pad));
+  transform: translateX(-50%);
+  touch-action: none;
+}
+
+.dock-item {
+  position: relative;
+  flex: none;
+  width: var(--dock-base);
+  height: var(--dock-base);
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: #f5f5f7;
+  font: inherit;
+  cursor: pointer;
+  outline: none;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+
+.dock-item:hover,
+.dock-item:focus-visible {
+  z-index: 1;
+}
+
+/* Sized and lifted by the animation loop; never transitioned in CSS. */
+.dock-tile {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: var(--dock-base);
+  height: var(--dock-base);
+  transform-origin: 0 0;
+  pointer-events: none;
+}
+
+.dock-face {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 16px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.14) 0%, rgba(255, 255, 255, 0.05) 100%);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.09),
+    inset 0 1px 0 rgba(255, 255, 255, 0.14),
+    0 4px 10px -4px rgba(0, 0, 0, 0.7);
+  transition: filter 0.2s ease;
+}
+
+.dock-item:active .dock-face,
+.dock-item[data-open] .dock-face {
+  filter: brightness(0.78);
+  transition-duration: 0s;
+}
+
+.dock-item:focus-visible .dock-face {
+  outline: 2px solid #ffffff;
+  outline-offset: 3px;
+}
+
+.dock-badge {
+  position: absolute;
+  top: calc(var(--dock-base) * -0.11);
+  right: calc(var(--dock-base) * -0.11);
+  box-sizing: border-box;
+  min-width: calc(var(--dock-base) * 0.38);
+  height: calc(var(--dock-base) * 0.38);
+  padding: 0 calc(var(--dock-base) * 0.1);
+  border-radius: 999px;
+  background: #ff453a;
+  color: #ffffff;
+  font-size: calc(var(--dock-base) * 0.22);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  line-height: calc(var(--dock-base) * 0.38);
+  text-align: center;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+  pointer-events: none;
+}
+
+/* Filled while a window is open, hollow while it is minimized. */
+.dock-dot {
+  position: absolute;
+  top: calc(100% + max(var(--dock-pad) / 2, 5px) - 2px);
+  left: 50%;
+  width: 4px;
+  height: 4px;
+  margin-left: -2px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.78);
+  pointer-events: none;
+}
+
+.dock-dot[data-hollow] {
+  background: none;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.7);
+}
+
+.dock-separator {
+  flex: none;
+  align-self: center;
+  width: 1px;
+  height: calc(var(--dock-base) * 0.6);
+  border-radius: 1px;
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.dock-label {
+  position: absolute;
+  bottom: calc(100% + 14px);
+  left: 50%;
+  padding: 5px 9px;
+  border-radius: 8px;
+  background: rgba(28, 30, 40, 0.95);
+  color: #f5f5f7;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.1),
+    0 8px 20px -8px rgba(0, 0, 0, 0.5);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transform: translate(-50%, 4px);
+  transition:
+    opacity 0.16s ease,
+    transform 0.16s ease;
+}
+
+.dock-item:focus-visible .dock-label {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+@media (hover: hover) {
+  .dock-item:hover .dock-label {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}
+
+.dock-item[data-hop] .dock-label {
+  opacity: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dock-label {
+    transition: opacity 0.16s ease;
+    transform: translate(-50%, 0);
+  }
+}

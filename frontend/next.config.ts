@@ -1,6 +1,9 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // The dev badge sits exactly where the dock does. Demo builds want the
+  // screen to themselves; nothing about the build itself changes.
+  devIndicators: false,
   cacheComponents: true,
   partialPrefetching: true,
   async rewrites() {

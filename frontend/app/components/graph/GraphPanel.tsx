@@ -13,7 +13,8 @@ import {
   type ReactFlowInstance,
 } from "@xyflow/react";
 import { useReducedMotion } from "motion/react";
-import { Check, ChevronDown, Copy, Info, Maximize, Minimize, Scan, Terminal, X, Zap } from "lucide-react";
+import { Check, ChevronDown, Copy, Info, Scan, Terminal, X, Zap } from "lucide-react";
+import { useWindowChrome } from "../../os/Window";
 import useMeasure from "react-use-measure";
 import type { AskStatus, HopEvent } from "../../lib/types";
 import { isFlagged, layoutForHops, mergeHops, type MEdge, type Merged, type Subgraph } from "./model";
@@ -486,10 +487,13 @@ export function GraphPanel({
   const neverAsked = hops.length === 0 && status !== "asking";
 
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const [expanded, setExpanded] = useState(false);
-
+  // On the desktop the window's own title bar lends us its right-hand end, so
+  // Fit and the Cypher drawer travel with the chrome, and the green button is
+  // what makes the graph fill the screen. On a phone there is no window, and
+  // the panel keeps the header it has always had.
+  const { slot, maximized } = useWindowChrome();
   // Scroll-zoom is only offered full-screen, where there's room to use it.
-  const zoomable = expanded;
+  const zoomable = maximized;
 
   const idleFlowRef = useRef<ReactFlowInstance | null>(null);
   const questionFlowRef = useRef<ReactFlowInstance | null>(null);
@@ -498,42 +502,37 @@ export function GraphPanel({
     inst?.fitView({ padding: 0.12, duration: motion ? 400 : 0, maxZoom: 1.25 });
   }, [showQuestion, motion]);
 
-  // Esc collapses the full-screen view, same as the close button.
-  useEffect(() => {
-    if (!expanded) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setExpanded(false);
-    };
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
-  }, [expanded]);
-
-  const panelBody = (
+  const controls = (
     <>
-      <header className="flex shrink-0 items-start justify-between gap-3 px-6 pt-5 pb-3">
-        <div>
-          <h2 className="text-[17px] font-semibold tracking-tight">How SPINE found it</h2>
-          <p className="mt-0.5 text-[13px] text-white/70">
-            {neverAsked
-              ? "This is your company. Ask something and watch SPINE walk through it."
-              : "The path it walked through your company"}
-          </p>
-        </div>
-        <div className="flex shrink-0 items-center gap-1">
-          <HeaderButton icon={<Scan aria-hidden size={16} />} label="Fit to screen" onClick={handleFit} />
-          <HeaderButton
-            icon={<Terminal aria-hidden size={16} />}
-            label="Show how I did this"
-            active={drawerOpen}
-            onClick={() => setDrawerOpen((v) => !v)}
-          />
-          <HeaderButton
-            icon={expanded ? <Minimize aria-hidden size={16} /> : <Maximize aria-hidden size={16} />}
-            label={expanded ? "Collapse" : "Expand"}
-            onClick={() => setExpanded((v) => !v)}
-          />
-        </div>
-      </header>
+      <HeaderButton icon={<Scan aria-hidden size={16} />} label="Fit to screen" onClick={handleFit} />
+      <HeaderButton
+        icon={<Terminal aria-hidden size={16} />}
+        label="Show how I did this"
+        active={drawerOpen}
+        onClick={() => setDrawerOpen((v) => !v)}
+      />
+    </>
+  );
+
+  return (
+    <div className="flex h-full min-h-0 flex-col">
+      {/* In a window the title bar already names the panel and holds the
+          buttons; without one (on a phone) this header is the only chrome. */}
+      {slot ? (
+        createPortal(controls, slot)
+      ) : (
+        <header className="flex shrink-0 items-start justify-between gap-3 px-6 pt-5 pb-3">
+          <div>
+            <h2 className="text-[17px] font-semibold tracking-tight">How SPINE found it</h2>
+            <p className="mt-0.5 text-[13px] text-white/70">
+              {neverAsked
+                ? "This is your company. Ask something and watch SPINE walk through it."
+                : "The path it walked through your company"}
+            </p>
+          </div>
+          <div className="flex shrink-0 items-center gap-1">{controls}</div>
+        </header>
+      )}
 
       <div ref={ref} className="spine-flow relative min-h-0 flex-1">
         {/* The company, always underneath; it steps back while a question is walked. */}
@@ -552,7 +551,7 @@ export function GraphPanel({
               preventScrolling={zoomable}
             >
               <Camera
-                frameKey={`map-${idle.nodes.length}-${size.width}-${size.height}-${highlightId ?? ""}-${expanded}`}
+                frameKey={`map-${idle.nodes.length}-${size.width}-${size.height}-${highlightId ?? ""}-${maximized}`}
                 focusKey={!showQuestion && highlightId && idle.nodes.some((n) => n.id === highlightId) ? highlightId : ""}
                 duration={camera}
                 // Team labels are 15px CSS; never zoom out past the point where
@@ -587,7 +586,7 @@ export function GraphPanel({
             >
               {/* Each hop: glide to what it drew. The answer: frame the whole walk. */}
               <Camera
-                frameKey={`q-${question.layout}-${question.merged.lastStep}-${question.nodes.length}-${final}-${size.width}-${size.height}-${expanded}`}
+                frameKey={`q-${question.layout}-${question.merged.lastStep}-${question.nodes.length}-${final}-${size.width}-${size.height}-${maximized}`}
                 focusKey={final ? "" : question.hopIds}
                 duration={camera}
                 onInit={(inst) => {
@@ -601,28 +600,6 @@ export function GraphPanel({
         <Legend />
         <Drawer open={drawerOpen} onClose={() => setDrawerOpen(false)} hops={hops} />
       </div>
-    </>
+    </div>
   );
-
-  if (expanded) {
-    return createPortal(
-      <div
-        className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm md:p-8"
-        onClick={() => setExpanded(false)}
-      >
-        <div
-          role="dialog"
-          aria-modal="true"
-          aria-label="How SPINE found it — expanded"
-          onClick={(e) => e.stopPropagation()}
-          className="glass-strong relative flex h-full w-full flex-col overflow-hidden rounded-[28px] shadow-2xl"
-        >
-          {panelBody}
-        </div>
-      </div>,
-      document.body
-    );
-  }
-
-  return <div className="flex h-full min-h-0 flex-col">{panelBody}</div>;
 }

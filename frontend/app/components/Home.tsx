@@ -9,8 +9,10 @@ import { ActionToast, BottomPill, MobileSwitcher, OutageToasts, TopPill } from "
 import { NoticedPanel } from "./NoticedPanel";
 import { AskBar, askBlockedReason } from "./AskBar";
 import { AnswerView } from "./AnswerView";
+import { VeraList } from "./VeraList";
+import { OSShell } from "../os/OSShell";
 import { useSpine } from "../lib/useSpine";
-import { displayName } from "../lib/labels";
+import { severityLabel } from "../lib/labels";
 
 const RECENT_KEY = "spine-recent-questions";
 
@@ -23,13 +25,28 @@ function readRecent(): string[] {
   }
 }
 
+/** The desktop gets floating windows; a phone keeps the stacked layout. Null
+ * until mounted, because the server cannot know how wide the screen is. */
+function useDesktop(): boolean | null {
+  const [desktop, setDesktop] = useState<boolean | null>(null);
+  useEffect(() => {
+    const mq = window.matchMedia("(min-width: 768px)");
+    const sync = () => setDesktop(mq.matches);
+    sync();
+    mq.addEventListener("change", sync);
+    return () => mq.removeEventListener("change", sync);
+  }, []);
+  return desktop;
+}
+
 /**
- * The bento home. `welcomeDone` gates the backdrop so the welcome screen's
+ * The home screen. `welcomeDone` gates the backdrop so the welcome screen's
  * canvas and this one are never alive at the same time.
  */
 export function Home({ welcomeDone }: { welcomeDone: boolean }) {
   const spine = useSpine();
   const { findings, hops, probes, selectedFinding, backend, stats } = spine;
+  const desktop = useDesktop();
 
   const [mobileView, setMobileView] = useState<MobileView>("ask");
   const [question, setQuestion] = useState("");
@@ -65,104 +82,110 @@ export function Home({ welcomeDone }: { welcomeDone: boolean }) {
 
   const isEmpty = spine.askStatus === "idle" && !selectedFinding;
 
+  // Built once and handed to whichever layout is on screen.
+  const noticed = (
+    <NoticedPanel
+      findings={findings}
+      selected={selectedFinding}
+      onSelect={(f) => {
+        spine.setSelectedFinding(f);
+        // On a phone the detail lives in the Ask view.
+        if (f) setMobileView("ask");
+      }}
+      claims={spine.claims}
+      resolvedThisWeek={spine.resolvedThisWeek}
+    />
+  );
+
+  const graph = (
+    <GraphPanel
+      hops={hops}
+      status={spine.askStatus}
+      highlightId={selectedFinding?.target_id ?? null}
+      backendUp={backend.graph === "up"}
+      companyMap={spine.companyMap}
+      companyMapFailed={spine.companyMapFailed}
+    />
+  );
+
+  const answer = (
+    <AnswerView
+      status={spine.askStatus}
+      answer={spine.answer}
+      evidence={spine.evidence}
+      replaced={spine.replaced}
+      factDates={spine.factDates}
+      hops={hops}
+      error={spine.askError}
+      selectedFinding={selectedFinding}
+      onCloseFinding={() => spine.setSelectedFinding(null)}
+      onAsk={askQuestion}
+      onRetry={() => askQuestion(spine.lastQuestion)}
+      onFeedback={() => spine.feedback()}
+      notify={spine.notify}
+      askDisabled={blocked}
+    />
+  );
+
+  const ask = (
+    <AskBar
+      value={question}
+      onChange={setQuestion}
+      onAsk={askQuestion}
+      onStop={spine.stopAsking}
+      isAsking={spine.isAsking}
+      backend={backend}
+      recent={recent}
+      showExamples={!isEmpty}
+    />
+  );
+
+  const urgentCount = findings.filter((f) => severityLabel(f.severity) === "Urgent").length;
+
   return (
     <div className="spine-dark relative min-h-dvh text-white">
       {welcomeDone && <Backdrop />}
 
-      <TopPill backend={backend} isScanning={spine.isScanning} onScan={spine.scan} />
-      <OutageToasts backend={backend} />
-      <MobileSwitcher view={mobileView} onChange={setMobileView} />
+      {desktop === true && (
+        <OSShell
+          panels={{ noticed, graph, answer, ask }}
+          probes={probes}
+          onAnswerVera={() => setShowVera(true)}
+          stats={stats}
+          findingCount={findings.length}
+          urgentCount={urgentCount}
+          backend={backend}
+          isScanning={spine.isScanning}
+          onScan={spine.scan}
+          askStatus={spine.askStatus}
+          answerText={spine.answer}
+        />
+      )}
 
-      <Bento
-        mobileView={mobileView}
-        streaming={spine.askStatus === "asking"}
-        left={
-          <NoticedPanel
-            findings={findings}
-            selected={selectedFinding}
-            onSelect={(f) => {
-              spine.setSelectedFinding(f);
-              // On a phone the detail lives in the Ask view.
-              if (f) setMobileView("ask");
-            }}
-            claims={spine.claims}
-            resolvedThisWeek={spine.resolvedThisWeek}
+      {desktop === false && (
+        <>
+          <TopPill backend={backend} isScanning={spine.isScanning} onScan={spine.scan} />
+          <MobileSwitcher view={mobileView} onChange={setMobileView} />
+          <Bento
+            mobileView={mobileView}
+            streaming={spine.askStatus === "asking"}
+            left={noticed}
+            graph={graph}
+            answer={answer}
+            ask={ask}
+            right={<VeraList probes={probes} onAnswer={() => setShowVera(true)} />}
           />
-        }
-        graph={
-          <GraphPanel
-            hops={hops}
-            status={spine.askStatus}
-            highlightId={selectedFinding?.target_id ?? null}
-            backendUp={backend.graph === "up"}
-            companyMap={spine.companyMap}
-            companyMapFailed={spine.companyMapFailed}
-          />
-        }
-        answer={
-          <AnswerView
-            status={spine.askStatus}
-            answer={spine.answer}
-            evidence={spine.evidence}
-            replaced={spine.replaced}
-            factDates={spine.factDates}
-            hops={hops}
-            error={spine.askError}
-            selectedFinding={selectedFinding}
-            onCloseFinding={() => spine.setSelectedFinding(null)}
-            onAsk={askQuestion}
-            onRetry={() => askQuestion(spine.lastQuestion)}
-            onFeedback={() => spine.feedback()}
-            notify={spine.notify}
-            askDisabled={blocked}
-          />
-        }
-        ask={
-          <AskBar
-            value={question}
-            onChange={setQuestion}
-            onAsk={askQuestion}
-            onStop={spine.stopAsking}
-            isAsking={spine.isAsking}
+          <BottomPill
             backend={backend}
-            recent={recent}
-            showExamples={!isEmpty}
+            facts={stats.knowledgeNodes}
+            connections={stats.knowledgeEdges}
+            findings={findings.length}
+            questions={probes.length}
           />
-        }
-        right={
-          <div className="flex flex-col gap-3">
-            <p className="text-[15px] text-white/90">
-              {probes.length === 0
-                ? "Nothing to confirm right now."
-                : `${probes.length} ${probes.length === 1 ? "question needs" : "questions need"} a person.`}
-            </p>
-            <ul className="flex flex-col gap-1.5">
-              {probes.map((p) => (
-                <li key={p.task_id} className="text-[13px] text-white/75">
-                  About {displayName(p.target_name, "something in the graph")}
-                </li>
-              ))}
-            </ul>
-            {probes.length > 0 && (
-              <button
-                type="button"
-                onClick={() => setShowVera(true)}
-                className="self-start rounded-full bg-white/10 px-4 py-2 text-[13px] font-medium hover:bg-white/15 active:scale-[0.97]"
-              >
-                Answer Vera&apos;s questions
-              </button>
-            )}
-          </div>
-        }
-      />
+        </>
+      )}
 
-      <BottomPill
-        backend={backend}
-        facts={stats.knowledgeNodes}
-        connections={stats.knowledgeEdges}
-        findings={findings.length}
-        questions={probes.length}
-      />
+      <OutageToasts backend={backend} />
       <ActionToast toast={spine.toast} onDismiss={spine.dismissToast} />
 
       {showVera && (
