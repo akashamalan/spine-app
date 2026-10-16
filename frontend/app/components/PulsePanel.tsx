@@ -1,6 +1,9 @@
 "use client";
 
+import { useEffect, useRef, useState } from "react";
 import type { Finding } from "../page";
+
+const NEW_FINDING_WINDOW_MS = 3000;
 
 const KIND_COLORS: Record<string, { bg: string; text: string; icon: string }> = {
   bus_factor: { bg: "bg-signal-soft", text: "text-signal", icon: "⚠" },
@@ -31,6 +34,54 @@ export function PulsePanel({
   onSelect: (f: Finding) => void;
   selected: Finding | null;
 }) {
+  const seenRef = useRef<Set<string>>(new Set());
+  const timersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+  const [newIds, setNewIds] = useState<Set<string>>(new Set());
+  const [, setClockTick] = useState(0);
+
+  // Re-render every 30s so timeAgo() labels stay fresh without new findings arriving.
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setClockTick((prev) => prev + 1);
+    }, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Track findings that arrived in the last NEW_FINDING_WINDOW_MS.
+  useEffect(() => {
+    const incoming = findings.filter((f) => !seenRef.current.has(f.finding_id));
+    if (incoming.length === 0) return;
+
+    incoming.forEach((f) => seenRef.current.add(f.finding_id));
+
+    setNewIds((prev) => {
+      const next = new Set(prev);
+      incoming.forEach((f) => next.add(f.finding_id));
+      return next;
+    });
+
+    incoming.forEach((f) => {
+      const timer = setTimeout(() => {
+        setNewIds((prev) => {
+          const next = new Set(prev);
+          next.delete(f.finding_id);
+          return next;
+        });
+        timersRef.current.delete(f.finding_id);
+      }, NEW_FINDING_WINDOW_MS);
+      timersRef.current.set(f.finding_id, timer);
+    });
+  }, [findings]);
+
+  // Clear any pending timers on unmount. The Map identity is captured here
+  // so cleanup cannot read a different ref value than the effect saw.
+  useEffect(() => {
+    const timers = timersRef.current;
+    return () => {
+      timers.forEach((timer) => clearTimeout(timer));
+    };
+  }, []);
+
   if (findings.length === 0) {
     return (
       <div className="flex-1 flex items-center justify-center p-4">
@@ -52,14 +103,15 @@ export function PulsePanel({
       {findings.map((f) => {
         const colors = KIND_COLORS[f.kind] || KIND_COLORS.decay;
         const isSelected = selected?.finding_id === f.finding_id;
+        const isNew = newIds.has(f.finding_id);
 
         return (
           <button
             key={f.finding_id}
             onClick={() => onSelect(f)}
-            className={`w-full text-left px-3 py-2.5 border-b border-rule transition-colors hover:bg-sunk ${
-              isSelected ? "bg-sunk border-l-2 border-l-accent" : ""
-            }`}
+            className={`w-full text-left px-3 py-2.5 border-b border-rule transition-colors hover:bg-sunk animate-hop ${
+              isNew ? "animate-finding-glow" : ""
+            } ${isSelected ? "bg-sunk border-l-2 border-l-primary" : ""}`}
           >
             <div className="flex items-start gap-2">
               <span className="text-sm shrink-0 mt-0.5">{colors.icon}</span>

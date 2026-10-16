@@ -56,7 +56,7 @@ export function VeraOverlay({
                 height="24"
                 viewBox="0 0 18 18"
                 fill="none"
-                className="text-accent"
+                className="text-primary"
               >
                 <circle
                   cx="9"
@@ -107,7 +107,7 @@ export function VeraOverlay({
                 onClick={() => setActiveProbe(p.task_id)}
                 className={`px-2.5 py-1 text-xs rounded-md transition-colors shrink-0 ${
                   activeProbe === p.task_id
-                    ? "bg-accent-soft text-accent font-medium"
+                    ? "bg-accent-soft text-primary font-medium"
                     : "text-ink-faint hover:text-ink-soft hover:bg-sunk"
                 }`}
               >
@@ -143,7 +143,7 @@ export function VeraOverlay({
                 onChange={(e) => setResponseText(e.target.value)}
                 placeholder="Type what you know..."
                 rows={3}
-                className="w-full mt-1.5 px-3 py-2 text-sm bg-paper border border-rule rounded-md focus:outline-none focus:border-accent placeholder:text-ink-faint resize-none"
+                className="w-full mt-1.5 px-3 py-2 text-sm bg-paper border border-rule rounded-md focus:outline-none focus:border-primary placeholder:text-ink-faint resize-none"
               />
             </div>
 
@@ -155,7 +155,7 @@ export function VeraOverlay({
               <button
                 onClick={handleSubmit}
                 disabled={submitting || !responseText.trim()}
-                className="px-4 py-2 text-sm font-medium rounded-md bg-accent text-white hover:bg-accent/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                className="px-4 py-2 text-sm font-medium rounded-md bg-primary text-white hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 {submitting ? "Saving..." : "Answer Vera"}
               </button>

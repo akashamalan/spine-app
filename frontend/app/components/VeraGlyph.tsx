@@ -23,7 +23,7 @@ export function VeraGlyph({
       onClick={onClick}
       className={`relative flex items-center gap-2 px-3 py-1.5 rounded-full border transition-all ${
         state === "speaking"
-          ? "border-accent bg-accent-soft"
+          ? "border-primary bg-accent-soft"
           : "border-rule bg-slab hover:bg-sunk"
       } ${stateClass}`}
       title={
@@ -39,7 +39,7 @@ export function VeraGlyph({
           height="18"
           viewBox="0 0 18 18"
           fill="none"
-          className={state === "speaking" ? "text-accent" : "text-ink-faint"}
+          className={state === "speaking" ? "text-primary" : "text-ink-faint"}
         >
           {/* Outer ring */}
           <circle
@@ -69,14 +69,15 @@ export function VeraGlyph({
 
       <span
         className={`text-xs font-medium ${
-          state === "speaking" ? "text-accent" : "text-ink-faint"
+          state === "speaking" ? "text-primary" : "text-ink-faint"
         }`}
       >
         Vera
       </span>
 
+      {/* Probe count badge — top-right of the button */}
       {probeCount > 0 && (
-        <span className="text-[10px] font-bold bg-signal text-white rounded-full w-4 h-4 flex items-center justify-center">
+        <span className="absolute -top-1.5 -right-1.5 min-w-[16px] h-4 px-1 flex items-center justify-center rounded-full bg-signal text-white text-[10px] font-bold leading-none">
           {probeCount}
         </span>
       )}

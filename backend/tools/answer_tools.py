@@ -10,44 +10,196 @@ from backend.utils.embeddings import embed_text
 from backend.utils.confidence import compute_confidence, is_stale, CONFIDENCE_FLOOR
 
 
-def find_entry_points(question: str, limit: int = 5) -> dict:
-    """Vector search for claims related to the question."""
-    vec = embed_text(question)
-    cypher = """CALL db.idx.vector.queryNodes(
-        'Claim', 'embedding', $k, vecf32($vec)
-    ) YIELD node, score
-    RETURN node.id, node.text, node.fact_type, node.base_conf,
-           node.half_life_days, node.asserted_at, score
-    ORDER BY score DESC"""
+def resolve_entity(name: str) -> dict | None:
+    """
+    Resolve a plain-English name ("billing service") to a real graph node.
 
-    result = ro_query(cypher, {"k": limit, "vec": vec})
+    Case-insensitive CONTAINS match against System/Person/Team names.
+    Returns None if nothing matches, so the caller can fall back to
+    vector search.
+    """
+    cypher = """MATCH (n) WHERE (n:System OR n:Person OR n:Team)
+      AND toLower(n.name) CONTAINS toLower($name)
+    RETURN n.id, n.name, labels(n)[0]
+    LIMIT 1"""
+
+    result = ro_query(cypher, {"name": name.strip()})
+    if not result.result_set:
+        return None
+
+    row = result.result_set[0]
+    return {"id": row[0], "name": row[1], "type": row[2]}
+
+
+def _cosine(a: list[float], b: list[float]) -> float:
+    dot = sum(x * y for x, y in zip(a, b))
+    na = sum(x * x for x in a) ** 0.5
+    nb = sum(y * y for y in b) ** 0.5
+    return dot / (na * nb) if na and nb else 0.0
+
+
+def claims_about(entity_id: str, limit: int = 5, question: str | None = None) -> list[dict]:
+    """
+    Claim-level evidence attached to an entity, with live confidence.
+
+    Same shape as find_entry_points' results so both can feed the
+    evidence list the UI renders. With a question, claims rank on
+    similarity × live confidence (the same rule as find_entry_points), so
+    the claim that actually answers the question leads. Without one, they
+    rank on confidence alone.
+    """
+    # Superseded claims are history, not current facts.
+    cypher = """MATCH (c:Claim)-[:ABOUT]->(e {id: $id})
+    WHERE NOT (:Claim)-[:SUPERSEDES]->(c)
+    RETURN c.id, c.text, c.fact_type, c.base_conf,
+           c.half_life_days, c.asserted_at
+    ORDER BY c.asserted_at DESC"""
+
+    result = ro_query(cypher, {"id": entity_id})
     now = now_epoch()
 
-    entries = []
+    claims = []
     for row in result.result_set:
         conf = compute_confidence(
             base_conf=row[3], half_life_days=row[4],
             asserted_at=row[5], now_epoch=now
         )
-        entries.append({
+        claims.append({
             "claim_id": row[0],
             "text": row[1],
             "fact_type": row[2],
             "confidence": conf,
             "stale": is_stale(conf),
-            "similarity": round(row[6], 4),
         })
+
+    if question:
+        qvec = embed_text(question)
+        for c in claims:
+            sim = max(0.0, _cosine(qvec, embed_text(c["text"])))
+            c["similarity"] = round(sim, 4)
+            c["rank"] = round(sim * c["confidence"], 6)
+        claims.sort(key=lambda c: c["rank"], reverse=True)
+    else:
+        # Most trustworthy first, so weak facts never lead the evidence list.
+        claims.sort(key=lambda c: c["confidence"], reverse=True)
+    return claims[:limit]
+
+
+def replaced_claims_about(entity_id: str, limit: int = 5) -> list[dict]:
+    """
+    Superseded claims about an entity — history only, never current facts.
+
+    Each carries `replaced: True` and the text of what replaced it, so the
+    UI can show "replaced by …". Never passed to the LLM as evidence.
+    """
+    cypher = """MATCH (c:Claim)-[:ABOUT]->(e {id: $id})
+    MATCH (newer:Claim)-[:SUPERSEDES]->(c)
+    RETURN c.id, c.text, c.fact_type, c.base_conf,
+           c.half_life_days, c.asserted_at, newer.text
+    ORDER BY c.asserted_at DESC"""
+
+    result = ro_query(cypher, {"id": entity_id})
+    now = now_epoch()
+
+    out = []
+    for row in result.result_set:
+        conf = compute_confidence(
+            base_conf=row[3], half_life_days=row[4],
+            asserted_at=row[5], now_epoch=now
+        )
+        out.append({
+            "claim_id": row[0],
+            "text": row[1],
+            "fact_type": row[2],
+            "confidence": conf,
+            "stale": is_stale(conf),
+            "replaced": True,
+            "replaced_by": row[6],
+        })
+    return out[:limit]
+
+
+def find_entry_points(question: str, limit: int = 5) -> dict:
+    """
+    Vector search for claims related to the question.
+
+    Two ranking rules:
+      a) A superseded claim (something SUPERSEDES it) is never a current
+         fact. Those are returned separately as `replaced` so the UI can
+         show them in history, but they never feed the answer.
+      b) Remaining claims rank on similarity weighted by live confidence,
+         so a 90% fact beats a 9% fact on the same topic.
+
+    Note: db.idx.vector.queryNodes returns a cosine DISTANCE — 0 is an
+    exact match and larger is less similar — so results are ordered ASC
+    and converted to a similarity before weighting.
+    """
+    vec = embed_text(question)
+
+    # Over-fetch: superseded claims are dropped after scoring, and the
+    # vector index can only be asked for a fixed k.
+    k = max(limit * 4, 20)
+
+    cypher = """CALL db.idx.vector.queryNodes(
+        'Claim', 'embedding', $k, vecf32($vec)
+    ) YIELD node, score
+    OPTIONAL MATCH (newer:Claim)-[:SUPERSEDES]->(node)
+    WITH node, score, count(newer) AS superseded_count
+    RETURN node.id, node.text, node.fact_type, node.base_conf,
+           node.half_life_days, node.asserted_at, score,
+           superseded_count > 0 AS superseded
+    ORDER BY score ASC"""
+
+    result = ro_query(cypher, {"k": k, "vec": vec})
+    now = now_epoch()
+
+    current: list[dict] = []
+    replaced: list[dict] = []
+
+    for row in result.result_set:
+        conf = compute_confidence(
+            base_conf=row[3], half_life_days=row[4],
+            asserted_at=row[5], now_epoch=now
+        )
+        similarity = max(0.0, 1.0 - float(row[6]))
+
+        entry = {
+            "claim_id": row[0],
+            "text": row[1],
+            "fact_type": row[2],
+            "confidence": conf,
+            "stale": is_stale(conf),
+            "similarity": round(similarity, 4),
+            # Relevance and trust combined — this is the sort key.
+            "rank": round(similarity * conf, 6),
+        }
+
+        if row[7]:
+            entry["replaced"] = True
+            replaced.append(entry)
+        else:
+            current.append(entry)
+
+    current.sort(key=lambda e: e["rank"], reverse=True)
+    replaced.sort(key=lambda e: e["similarity"], reverse=True)
 
     return {
         "tool": "find_entry_points",
         "cypher": cypher.strip(),
-        "results": entries,
+        "results": current[:limit],
+        "replaced": replaced[:limit],
     }
 
 
 def neighbours(node_id: str, depth: int = 1) -> dict:
-    """Get immediate neighbours of a node, with edge types."""
+    """
+    Get immediate neighbours of a node, with edge types.
+
+    Superseded claims are excluded: neighbours feed the answer as context,
+    and a replaced claim must never be presented as a current fact.
+    """
     cypher = """MATCH (n {id: $id})-[r]-(m)
+    WHERE NOT (m:Claim AND (:Claim)-[:SUPERSEDES]->(m))
     RETURN n.id, type(r), m.id,
            CASE WHEN m.name IS NOT NULL THEN m.name
                 WHEN m.text IS NOT NULL THEN m.text

@@ -12,6 +12,9 @@ const nextConfig: NextConfig = {
     ];
   },
   turbopack: {
+    // Pin the workspace root. A stray package-lock.json in the user's home
+    // directory otherwise makes Turbopack infer the wrong root and warn.
+    root: __dirname,
     rules: {
       "*.css": {
         loaders: ["@tailwindcss/turbopack"],

@@ -4,18 +4,34 @@ Seed SPINE with synthetic company data and PLANTED FAULTS.
 This is NOT real company data — it's a synthetic "Northwind Engineering" org
 designed so the reflex agents have real things to find:
 
-PLANTED FAULTS:
-1. Bus-factor: "billing-service" owned only by Priya, who left 94 days ago
-   (active=false). Nobody else has OWNS or KNOWS_ABOUT for it.
-2. Orphan: "legacy-auth" system has no OWNS, no DEPENDS_ON inbound, only
-   one stale Claim from 540 days ago.
-3. Decay: Several claims about "deploy-process" are 300+ days old with
-   half_life_days=270 (process type). Their confidence has decayed below 0.6.
-4. Contradiction: Two claims about the rollback step in the deploy process
-   disagree — one says "rollback via git revert" and the other says
-   "rollback via feature flag."
-5. Missing owner gap: billing-service's OWNS edge has until != null (set to
-   when Priya left), so the broken-path query shows the shape of the hole.
+Roughly 12 people, 10 services, 15 documents and 3 teams of invented
+"Northwind Engineering", sized so the graph feels like a real company.
+
+PLANTED FAULTS — one per Health category, so each has something real to show:
+
+1. Only one person knows this
+   "reporting-service" has exactly one owner (Nina Volkov) and no deputy.
+   Nobody else OWNS or KNOWS_ABOUT it.
+
+2. Nobody looks after this
+   "billing-service"'s only owner is Priya Sharma, who left: her Person node
+   has left_at set and the OWNS edge has until != null, so the broken-path
+   query shows the shape of the hole.
+   "legacy-auth" is the harder case: no OWNS at all and no inbound
+   DEPENDS_ON, so it is invisible to the dependency graph too.
+
+3. This might be outdated
+   "Deploy Runbook v2" was written 14 months ago (426 days). Its claims are
+   process facts with half_life_days=270, so their confidence has decayed
+   well below the 0.6 floor.
+
+4. Two documents disagree
+   Deploy Runbook v2 says roll back with a git revert; Deploy Runbook v4
+   says toggle a feature flag and do no git operations. Both are live.
+
+5. The owner has left
+   claim-billing-owner still names Priya Sharma as the primary owner of
+   billing-service, months after she left.
 """
 import sys
 import os
@@ -44,7 +60,8 @@ def seed():
     # ══════════════════════════════════════════════════════════════════════
     documents = [
         {"id": "doc-arch-v2", "title": "Architecture Overview v2", "type": "confluence", "created_at": ts(200), "url": "https://wiki.northwind.dev/arch-v2"},
-        {"id": "doc-deploy-runbook-v2", "title": "Deploy Runbook v2", "type": "confluence", "created_at": ts(311), "url": "https://wiki.northwind.dev/deploy-v2"},
+        # PLANTED FAULT #3: written 14 months ago, so its process claims decay.
+        {"id": "doc-deploy-runbook-v2", "title": "Deploy Runbook v2", "type": "confluence", "created_at": ts(426), "url": "https://wiki.northwind.dev/deploy-v2"},
         {"id": "doc-deploy-runbook-v4", "title": "Deploy Runbook v4", "type": "confluence", "created_at": ts(80), "url": "https://wiki.northwind.dev/deploy-v4"},
         {"id": "doc-onboarding", "title": "Engineering Onboarding Guide", "type": "notion", "created_at": ts(150), "url": "https://notion.northwind.dev/onboarding"},
         {"id": "doc-billing-design", "title": "Billing Service Design Doc", "type": "gdoc", "created_at": ts(400), "url": "https://docs.google.com/d/billing-design"},
@@ -53,6 +70,11 @@ def seed():
         {"id": "doc-team-charter", "title": "Platform Team Charter", "type": "notion", "created_at": ts(180), "url": "https://notion.northwind.dev/platform-charter"},
         {"id": "doc-api-gateway", "title": "API Gateway Migration Plan", "type": "confluence", "created_at": ts(45), "url": "https://wiki.northwind.dev/api-gateway"},
         {"id": "doc-q3-retro", "title": "Q3 2024 Retrospective", "type": "confluence", "created_at": ts(60), "url": "https://wiki.northwind.dev/q3-retro"},
+        {"id": "doc-security-review", "title": "Security Review 2025", "type": "confluence", "created_at": ts(70), "url": "https://wiki.northwind.dev/security-review"},
+        {"id": "doc-pipeline-design", "title": "Data Pipeline Design", "type": "gdoc", "created_at": ts(260), "url": "https://docs.google.com/d/pipeline-design"},
+        {"id": "doc-oncall-handbook", "title": "On-Call Handbook", "type": "notion", "created_at": ts(120), "url": "https://notion.northwind.dev/oncall"},
+        {"id": "doc-reporting-spec", "title": "Reporting Service Spec", "type": "confluence", "created_at": ts(95), "url": "https://wiki.northwind.dev/reporting-spec"},
+        {"id": "doc-search-postmortem", "title": "Postmortem: Search Outage July", "type": "confluence", "created_at": ts(110), "url": "https://wiki.northwind.dev/search-postmortem"},
     ]
 
     for d in documents:
@@ -79,6 +101,10 @@ def seed():
         {"id": "person-ravi",   "name": "Ravi Patel",      "role": "Frontend Engineer",       "active": True,  "joined_at": ts(200), "left_at": None},
         {"id": "person-dana",   "name": "Dana Kim",        "role": "SRE",                     "active": True,  "joined_at": ts(350), "left_at": None},
         {"id": "person-omar",   "name": "Omar Hassan",     "role": "Junior Backend Engineer", "active": True,  "joined_at": ts(90),  "left_at": None},
+        {"id": "person-nina",   "name": "Nina Volkov",     "role": "Data Engineer",           "active": True,  "joined_at": ts(260), "left_at": None},
+        {"id": "person-tom",    "name": "Tom Becker",      "role": "Backend Engineer",        "active": True,  "joined_at": ts(170), "left_at": None},
+        {"id": "person-yuki",   "name": "Yuki Tanaka",     "role": "Security Engineer",       "active": True,  "joined_at": ts(410), "left_at": None},
+        {"id": "person-grace",  "name": "Grace Owusu",     "role": "SRE",                     "active": True,  "joined_at": ts(140), "left_at": None},
     ]
 
     for p in people:
@@ -111,6 +137,8 @@ def seed():
         ("person-sam", "team-platform"), ("person-jordan", "team-product"),
         ("person-mei", "team-platform"), ("person-ravi", "team-product"),
         ("person-dana", "team-sre"), ("person-omar", "team-product"),
+        ("person-nina", "team-platform"), ("person-tom", "team-product"),
+        ("person-yuki", "team-platform"), ("person-grace", "team-sre"),
     ]
     for pid, tid in memberships:
         g.query(
@@ -130,6 +158,9 @@ def seed():
         {"id": "sys-legacy-auth", "name": "legacy-auth",       "tier": "low",      "language": "Java"},  # PLANTED FAULT: orphan
         {"id": "sys-data-pipeline","name": "data-pipeline",    "tier": "medium",   "language": "Python"},
         {"id": "sys-search",      "name": "search-service",    "tier": "medium",   "language": "Python"},
+        # PLANTED FAULT #1: reporting-service gets exactly one owner, no deputy.
+        {"id": "sys-reporting",   "name": "reporting-service", "tier": "medium",   "language": "Python"},
+        {"id": "sys-audit-log",   "name": "audit-log-service", "tier": "high",     "language": "Go"},
     ]
 
     for s in systems:
@@ -188,6 +219,14 @@ def seed():
         {"person": "person-sam",    "system": "sys-notification", "since": ts(300), "until": None, "primary": True},
         {"person": "person-dana",   "system": "sys-data-pipeline","since": ts(350), "until": None, "primary": True},
         {"person": "person-jordan", "system": "sys-search",       "since": ts(100), "until": None, "primary": True},
+
+        # PLANTED FAULT #1: reporting-service has exactly ONE owner and no
+        # deputy, so the bus factor is 1 — if Nina is away, nobody else knows it.
+        {"person": "person-nina",   "system": "sys-reporting",    "since": ts(95),  "until": None, "primary": True},
+
+        # audit-log-service is the healthy counter-example: two active owners.
+        {"person": "person-yuki",   "system": "sys-audit-log",    "since": ts(300), "until": None, "primary": True},
+        {"person": "person-tom",    "system": "sys-audit-log",    "since": ts(160), "until": None, "primary": False},
         # PLANTED FAULT #2: legacy-auth has NO OWNS edges at all → orphan
     ]
 
@@ -218,6 +257,9 @@ def seed():
         ("sys-billing",     "sys-data-pipeline"),
         ("sys-user-svc",    "sys-notification"),
         ("sys-search",      "sys-data-pipeline"),
+        ("sys-reporting",   "sys-data-pipeline"),
+        ("sys-billing",     "sys-audit-log"),
+        ("sys-audit-log",   "sys-user-svc"),
         # PLANTED FAULT #2: legacy-auth has NO inbound DEPENDS_ON
     ]
 
@@ -237,6 +279,11 @@ def seed():
         ("person-dana", "sys-billing"),
         ("person-mei", "sys-api-gateway"),
         ("person-omar", "sys-user-svc"),
+        ("person-tom",  "sys-audit-log"),
+        ("person-grace","sys-data-pipeline"),
+        ("person-yuki", "sys-api-gateway"),
+        # PLANTED FAULT #1: nobody KNOWS_ABOUT reporting-service except its
+        # single owner, which is what makes the bus factor real.
         # PLANTED: nobody KNOWS_ABOUT legacy-auth either
     ]
 
@@ -270,6 +317,11 @@ def seed():
         ("person-dana",  "doc-incident-2024-03"),
         ("person-mei",   "doc-team-charter"),
         ("person-ravi",  "doc-q3-retro"),
+        ("person-yuki",  "doc-security-review"),
+        ("person-nina",  "doc-pipeline-design"),
+        ("person-grace", "doc-oncall-handbook"),
+        ("person-nina",  "doc-reporting-spec"),
+        ("person-dana",  "doc-search-postmortem"),
     ]
 
     for pid, did in authored:
@@ -323,7 +375,7 @@ def seed():
         {
             "id": "claim-deploy-v2-rollback", "text": "Rollback procedure: revert the last git commit on the deploy branch and re-run the CI pipeline",
             "fact_type": "process", "half_life_days": 270, "base_conf": 0.90,
-            "asserted_at": ts(311), "valid_from": ts(311), "valid_to": None,  # 311 days old → decayed
+            "asserted_at": ts(426), "valid_from": ts(426), "valid_to": None,  # 14 months old → decayed
             "source": "doc-deploy-runbook-v2", "about": "sys-api-gateway",
         },
         {
@@ -336,7 +388,7 @@ def seed():
         {
             "id": "claim-deploy-frequency", "text": "The team deploys to production twice per week, on Tuesday and Thursday",
             "fact_type": "process", "half_life_days": 270, "base_conf": 0.85,
-            "asserted_at": ts(311), "valid_from": ts(311), "valid_to": None,  # PLANTED FAULT #3: decayed
+            "asserted_at": ts(426), "valid_from": ts(426), "valid_to": None,  # PLANTED FAULT #3: 14 months old
             "source": "doc-deploy-runbook-v2", "about": "sys-api-gateway",
         },
 
@@ -392,6 +444,49 @@ def seed():
             "fact_type": "architecture", "half_life_days": 540, "base_conf": 0.90,
             "asserted_at": ts(150), "valid_from": ts(300), "valid_to": None,
             "source": "doc-onboarding", "about": "sys-notification",
+        },
+        # ── new services ──
+        {
+            "id": "claim-reporting-purpose",
+            "text": "The reporting service builds the weekly revenue and usage reports from the data pipeline",
+            "fact_type": "architecture", "half_life_days": 540, "base_conf": 0.92,
+            "asserted_at": ts(95), "valid_from": ts(95), "valid_to": None,
+            "source": "doc-reporting-spec", "about": "sys-reporting",
+        },
+        {
+            "id": "claim-reporting-owner",
+            "text": "Nina Volkov is the only engineer who maintains the reporting service",
+            "fact_type": "ownership", "half_life_days": 120, "base_conf": 0.93,
+            "asserted_at": ts(95), "valid_from": ts(95), "valid_to": None,
+            "source": "doc-reporting-spec", "about": "sys-reporting",
+        },
+        {
+            "id": "claim-auditlog-purpose",
+            "text": "The audit log service records every billing and account change for compliance",
+            "fact_type": "architecture", "half_life_days": 540, "base_conf": 0.95,
+            "asserted_at": ts(70), "valid_from": ts(70), "valid_to": None,
+            "source": "doc-security-review", "about": "sys-audit-log",
+        },
+        {
+            "id": "claim-oncall-escalation",
+            "text": "Page the SRE on-call first; escalate to the service owner only if it is still unresolved after 30 minutes",
+            "fact_type": "process", "half_life_days": 270, "base_conf": 0.90,
+            "asserted_at": ts(120), "valid_from": ts(120), "valid_to": None,
+            "source": "doc-oncall-handbook", "about": "team-sre",
+        },
+        {
+            "id": "claim-pipeline-schedule",
+            "text": "The data pipeline runs nightly at 02:00 UTC and takes about 40 minutes",
+            "fact_type": "process", "half_life_days": 270, "base_conf": 0.88,
+            "asserted_at": ts(260), "valid_from": ts(260), "valid_to": None,
+            "source": "doc-pipeline-design", "about": "sys-data-pipeline",
+        },
+        {
+            "id": "claim-search-outage",
+            "text": "The July search outage was caused by an Elasticsearch index that was never re-created after a rolling restart",
+            "fact_type": "historical", "half_life_days": 999999, "base_conf": 0.97,
+            "asserted_at": ts(110), "valid_from": ts(110), "valid_to": None,
+            "source": "doc-search-postmortem", "about": "sys-search",
         },
     ]
 

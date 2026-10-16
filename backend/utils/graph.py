@@ -14,10 +14,13 @@ _graph = None
 def get_db() -> FalkorDB:
     global _db
     if _db is None:
+        ssl = os.getenv("FALKORDB_SSL", "false").lower() in ("1", "true", "yes")
         _db = FalkorDB(
             host=os.getenv("FALKORDB_HOST", "localhost"),
             port=int(os.getenv("FALKORDB_PORT", 6379)),
+            username=os.getenv("FALKORDB_USERNAME", "default"),
             password=os.getenv("FALKORDB_PASSWORD") or None,
+            ssl=ssl,
         )
     return _db
 

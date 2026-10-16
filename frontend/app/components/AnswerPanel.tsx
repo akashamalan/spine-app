@@ -1,13 +1,53 @@
 "use client";
 
-import type { Finding, HopEvent } from "../page";
+import type { Evidence, Finding, HopEvent } from "../page";
+
+function confidenceColor(pct: number): string {
+  if (pct >= 80) return "var(--good)";
+  if (pct >= 60) return "var(--warn)";
+  return "var(--signal)";
+}
+
+function EvidenceRow({ item }: { item: Evidence }) {
+  const pct = Math.round((item.confidence ?? 0) * 100);
+  const color = confidenceColor(pct);
+
+  return (
+    <div className="space-y-1">
+      <p className="text-xs text-ink-soft leading-snug">
+        {item.stale && <span className="mr-1">⚠</span>}
+        {item.text}
+      </p>
+      <div className="flex items-center gap-1.5">
+        {item.fact_type && (
+          <span className="text-[10px] font-mono text-ink-faint px-1 py-0.5 bg-sunk rounded">
+            {item.fact_type}
+          </span>
+        )}
+        <div className="flex items-center gap-1.5 ml-auto shrink-0">
+          <div className="w-16 h-1.5 bg-sunk rounded-full overflow-hidden">
+            <div
+              className="h-full rounded-full"
+              style={{ width: `${pct}%`, backgroundColor: color }}
+            />
+          </div>
+          <span className="text-[10px] font-mono" style={{ color }}>
+            {pct}%
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export function AnswerPanel({
   answer,
+  evidence,
   hops,
   selectedFinding,
 }: {
   answer: string;
+  evidence: Evidence[];
   hops: HopEvent[];
   selectedFinding: Finding | null;
 }) {
@@ -53,7 +93,7 @@ export function AnswerPanel({
                 <span className="text-[10px] text-ink-faint uppercase tracking-wider">
                   Target
                 </span>
-                <p className="text-sm font-mono text-accent">
+                <p className="text-sm font-mono text-primary">
                   {selectedFinding.target_name}
                 </p>
               </div>
@@ -84,8 +124,22 @@ export function AnswerPanel({
           <h3 className="text-xs font-semibold uppercase tracking-wider text-ink-faint mb-2">
             Answer
           </h3>
-          <div className="text-sm text-ink leading-relaxed whitespace-pre-wrap">
+          <p className="text-[15px] text-ink leading-relaxed whitespace-pre-wrap">
             {answer}
+          </p>
+        </div>
+      )}
+
+      {/* Evidence the answer was built from */}
+      {evidence.length > 0 && (
+        <div className="px-3 py-3 border-b border-rule">
+          <h3 className="text-xs font-semibold uppercase tracking-wider text-ink-faint mb-2">
+            Based on these facts
+          </h3>
+          <div className="space-y-3">
+            {evidence.map((item, i) => (
+              <EvidenceRow key={item.claim_id || i} item={item} />
+            ))}
           </div>
         </div>
       )}
@@ -102,7 +156,7 @@ export function AnswerPanel({
                 key={i}
                 className="flex items-center gap-2 text-xs text-ink-soft"
               >
-                <span className="w-4 h-4 rounded-full bg-accent-soft text-accent text-[10px] font-bold flex items-center justify-center shrink-0">
+                <span className="w-4 h-4 rounded-full bg-accent-soft text-primary text-[10px] font-bold flex items-center justify-center shrink-0">
                   {i + 1}
                 </span>
                 <span className="truncate">
