@@ -20,7 +20,7 @@ export default function Page() {
   return (
     <>
       {showWelcome && <WelcomeScreen onEnter={() => setShowWelcome(false)} />}
-      <Home />
+      <Home welcomeDone={!showWelcome} />
     </>
   );
 }

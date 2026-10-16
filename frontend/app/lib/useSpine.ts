@@ -19,6 +19,10 @@ const TOAST_MS = 6000;
 const BOOKKEEPING_NODES = new Set(["Finding", "AgentRun", "VerifyTask", "Response"]);
 const BOOKKEEPING_EDGES = new Set(["FLAGS", "RAISED_BY", "ANSWERED", "RESOLVED_BY"]);
 
+type ScanResponse = Partial<
+  Record<"bus_factor" | "orphans" | "decay" | "contradictions", { finding_id?: string }[]>
+>;
+
 type GraphStatsResponse = {
   nodes?: Record<string, number>;
   edges?: Record<string, number>;
@@ -88,6 +92,10 @@ export function useSpine(): Spine {
   });
   const [streamEpoch, setStreamEpoch] = useState(0);
   const lastGraphRef = useRef<BackendStatus["graph"]>("unknown");
+  const findingsRef = useRef<Finding[]>([]);
+  useEffect(() => {
+    findingsRef.current = findings;
+  }, [findings]);
 
   // Refs mirror the busy flags so the guards never read a stale closure.
   const askingRef = useRef(false);
@@ -309,29 +317,33 @@ export function useSpine(): Spine {
       const res = await fetch(`${API_BASE}/api/reflexes/run`, {
         method: "POST",
       });
-      const data = await res.json();
+      const data: ScanResponse = await res.json();
 
-      const counts: [string, number][] = [
-        ["bus-factor", data.bus_factor?.length ?? 0],
-        ["orphan", data.orphans?.length ?? 0],
-        ["decay", data.decay?.length ?? 0],
-        ["contradiction", data.contradictions?.length ?? 0],
-      ];
-      const found = counts
-        .filter(([, n]) => n > 0)
-        .map(([label, n]) => `${n} ${label}`)
-        .join(", ");
+      // "New" means a problem that wasn't on screen before this scan; the
+      // reflexes re-report problems they already know about.
+      const known = new Set(findingsRef.current.map((f) => f.finding_id));
+      const reported = new Set(
+        [data.bus_factor, data.orphans, data.decay, data.contradictions]
+          .flatMap((list) => list ?? [])
+          .map((f) => f.finding_id)
+          .filter((id): id is string => !!id)
+      );
+      const fresh = [...reported].filter((id) => !known.has(id)).length;
 
       showToast({
-        title: "Scan complete",
-        lines: [found ? `Found ${found}` : "No problems found"],
+        title: "Checked everything.",
+        lines: [
+          fresh === 0
+            ? "Nothing new to look at."
+            : `${fresh} new ${fresh === 1 ? "thing" : "things"} to look at.`,
+        ],
       });
 
       // The scan writes findings — re-read probes and stats rather than guess.
       await Promise.all([refreshProbes(), refreshGraphStats()]);
     } catch (err) {
       console.error("Failed to trigger reflexes:", err);
-      showToast({ title: "Scan failed", lines: ["Could not reach the backend."] });
+      showToast({ title: "Couldn't run the check.", lines: ["SPINE's server didn't answer. Try again in a moment."] });
     } finally {
       scanningRef.current = false;
       setIsScanning(false);
