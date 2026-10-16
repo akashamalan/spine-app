@@ -555,9 +555,11 @@ export function GraphPanel({
                 frameKey={`map-${idle.nodes.length}-${size.width}-${size.height}-${highlightId ?? ""}-${expanded}`}
                 focusKey={!showQuestion && highlightId && idle.nodes.some((n) => n.id === highlightId) ? highlightId : ""}
                 duration={camera}
-                // Team/person labels are 13px CSS; never zoom the idle map out
-                // past 1:1 to fit everyone in, or the names stop being readable.
-                minZoom={1}
+                // Team labels are 15px CSS; never zoom out past the point where
+                // that would render under 13px (13/15 ≈ 0.867). People are now
+                // small avatars rather than pills, so the natural fit rarely
+                // needs to use this floor at all — it is a backstop, not the norm.
+                minZoom={0.867}
                 onInit={(inst) => {
                   idleFlowRef.current = inst;
                 }}

@@ -94,7 +94,7 @@ function Tooltip({ text }: { text: string }) {
   return (
     <span
       role="tooltip"
-      className="pointer-events-none absolute bottom-full left-1/2 z-20 mb-2 w-max max-w-[240px] -translate-x-1/2 rounded-xl bg-[#14161e]/95 px-3 py-1.5 text-[13px] leading-snug text-white opacity-0 shadow-lg ring-1 ring-white/15 transition-opacity duration-150 group-hover:opacity-100"
+      className="pointer-events-none absolute bottom-full left-1/2 z-20 mb-2 w-max max-w-[240px] -translate-x-1/2 rounded-xl bg-[#14161e]/95 px-3 py-1.5 text-[13px] leading-snug text-white opacity-0 shadow-lg ring-1 ring-white/15 transition-opacity duration-150 group-hover:opacity-100 group-focus:opacity-100"
     >
       {text}
     </span>
@@ -155,26 +155,30 @@ export function PersonNode({ data }: NodeProps<SpineNode>) {
   const sentence = nodeSentence(n);
 
   if (data.variant === "chip") {
+    // A round initials avatar — the idle map's only hope of showing the whole
+    // company at once. The name is a tooltip (hover or keyboard focus); it
+    // only sits on screen permanently for the node a finding has highlighted.
     return (
-      <div className={shell(data)} aria-label={sentence}>
+      <div
+        className={shell(data, "flex w-11 flex-col items-center outline-none")}
+        tabIndex={0}
+        aria-label={sentence}
+      >
         <Anchors />
         <Tooltip text={sentence} />
-        <div
-          className={`flex h-[34px] w-[158px] items-center gap-2 rounded-full pl-1 pr-3 ${
-            ghost ? "border border-dashed border-white/40 opacity-40" : "bg-white/[0.07]"
-          } ${data.highlight ? "ring-2 ring-primary" : ""}`}
+        <span
+          className={`relative grid h-9 w-9 shrink-0 place-items-center rounded-full text-[13px] font-semibold focus-visible:ring-2 focus-visible:ring-primary ${
+            ghost ? "border border-dashed border-white/50 text-white/85" : "text-white"
+          } ${data.highlight ? "ring-2 ring-primary ring-offset-2 ring-offset-[#0b0f1a]" : ""}`}
+          style={ghost ? undefined : { background: teamTint(n) }}
         >
-          <span
-            aria-hidden
-            className={`grid h-[28px] w-[28px] shrink-0 place-items-center rounded-full text-[13px] font-semibold ${
-              ghost ? "border border-dashed border-white/60 text-white/80" : "text-white"
-            }`}
-            style={ghost ? undefined : { background: teamTint(n) }}
-          >
-            {initials(n.label)}
+          {initials(n.label)}
+        </span>
+        {data.highlight && (
+          <span className="absolute top-full left-1/2 mt-1 w-max max-w-[110px] -translate-x-1/2 truncate text-center text-[13px] font-medium text-white">
+            {n.label}
           </span>
-          <span className="truncate text-[13px] text-white">{n.label}</span>
-        </div>
+        )}
       </div>
     );
   }
@@ -230,14 +234,14 @@ export function ServiceNode({ data }: NodeProps<SpineNode>) {
       <Tooltip text={sentence} />
       {!chip && <Badges n={n} />}
       <div
-        className={`relative flex items-center gap-2 rounded-full border bg-[rgba(24,26,36,0.78)] ${
-          chip ? "h-[34px] w-[158px] px-3" : n.is_focus ? "h-[52px] px-5" : "h-[40px] px-4"
+        className={`relative flex items-center rounded-full border bg-[rgba(24,26,36,0.78)] ${
+          chip ? "h-[26px] w-[96px] gap-1 px-1.5" : n.is_focus ? "h-[52px] gap-2 px-5" : "h-[40px] gap-2 px-4"
         } ${data.flagged ? "border-stale/80 shadow-[0_0_0_3px_rgba(255,69,58,0.35)]" : "border-white/20"} ${
           data.highlight ? "shadow-[0_0_0_3px_var(--primary)]" : ""
         } ${n.is_focus ? "shadow-[0_0_28px_8px_rgba(10,132,255,0.35)] border-primary/70" : ""}`}
       >
         {!chip && <FlagPulse data={data} />}
-        <Server aria-hidden size={chip ? 14 : n.is_focus ? 20 : 16} className="shrink-0 text-white/75" />
+        <Server aria-hidden size={chip ? 11 : n.is_focus ? 20 : 16} className="shrink-0 text-white/75" />
         <span
           className={`truncate whitespace-nowrap font-medium text-white ${
             chip ? "text-[13px]" : n.is_focus ? "text-[20px]" : "text-[15px]"
@@ -247,7 +251,7 @@ export function ServiceNode({ data }: NodeProps<SpineNode>) {
         </span>
         <span
           aria-hidden
-          className={`ml-auto h-2 w-2 shrink-0 rounded-full ${risky ? "bg-stale" : "bg-fresh"}`}
+          className={`ml-auto h-1.5 w-1.5 shrink-0 rounded-full ${risky ? "bg-stale" : "bg-fresh"}`}
         />
       </div>
     </div>
@@ -300,7 +304,7 @@ export function TeamNode({ data }: NodeProps<Node<IslandData>>) {
       }`}
       style={{ width: data.width, height: data.height }}
     >
-      <p className={`px-4 pt-2.5 text-[13px] font-semibold ${data.warn ? "text-[#ffb4ae]" : "text-white/85"}`}>
+      <p className={`px-4 pt-2.5 text-[15px] font-semibold ${data.warn ? "text-[#ffb4ae]" : "text-white/85"}`}>
         {data.label}
       </p>
     </div>

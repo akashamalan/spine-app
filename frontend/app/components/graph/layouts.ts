@@ -176,17 +176,25 @@ export type Island = {
 
 export type MapLayout = { positions: Positions; islands: Island[] };
 
-export const CHIP_W = 158;
-export const CHIP_H = 34;
-const CHIP_GAP = 8;
-const PAD = 14;
-const HEADER = 30;
-const ISLAND_GAP = 18;
+// Service pills were sized for a roomy panel; the idle map now has to fit
+// 4+ team islands in a short, wide strip, so every one of these is tighter
+// than the question-graph's own full-size nodes.
+export const CHIP_W = 96;
+export const CHIP_H = 26;
+const CHIP_GAP = 6;
+/** People are round initials avatars now, not pills — far smaller per head. */
+export const AVATAR = 36;
+const AVATAR_GAP = 6;
+const AVATAR_CELL = AVATAR + AVATAR_GAP;
+const BLOCK_GAP = 6; // between the avatar grid and the service list
+const PAD = 8;
+const HEADER = 20;
+const ISLAND_GAP = 8;
 
 /**
- * People sit inside their team's island; each service sits in the island of
- * the team most of its current owners belong to. Islands fill columns top
- * to bottom so the whole company fits the panel's height.
+ * People sit inside their team's island as a small grid of avatars; services
+ * owned by that team list below as pills. Islands shelf-pack across both
+ * axes so the whole company fits the panel without shrinking past legibility.
  */
 export function companyMap(nodes: SGNode[], edges: SGEdge[], size: Size): MapLayout {
   const people = nodes.filter((n) => n.type === "person");
@@ -194,19 +202,25 @@ export function companyMap(nodes: SGNode[], edges: SGEdge[], size: Size): MapLay
   const teams = nodes.filter((n) => n.type === "team");
   const teamOf = new Map(people.map((p) => [p.id, p.team_id ?? null]));
 
-  type Group = { id: string; label: string; items: string[]; warn?: boolean };
+  type Group = { id: string; label: string; people: string[]; services: string[]; warn?: boolean };
   const groups = new Map<string, Group>(
     teams
       .slice()
       .sort((a, b) => a.label.localeCompare(b.label))
-      .map((t) => [t.id, { id: t.id, label: t.label, items: [] }])
+      .map((t) => [t.id, { id: t.id, label: t.label, people: [], services: [] }])
   );
-  const noTeam: Group = { id: "island-no-team", label: "No team", items: [] };
-  const unowned: Group = { id: "island-unowned", label: "Nobody looks after these", items: [], warn: true };
+  const noTeam: Group = { id: "island-no-team", label: "No team", people: [], services: [] };
+  const unowned: Group = {
+    id: "island-unowned",
+    label: "Nobody looks after these",
+    people: [],
+    services: [],
+    warn: true,
+  };
 
   // Current people first, then those who left, each alphabetically.
   for (const p of people.slice().sort((a, b) => Number(Boolean(a.left)) - Number(Boolean(b.left)) || a.label.localeCompare(b.label))) {
-    (groups.get(p.team_id ?? "") ?? noTeam).items.push(p.id);
+    (groups.get(p.team_id ?? "") ?? noTeam).people.push(p.id);
   }
   for (const s of services.slice().sort((a, b) => a.label.localeCompare(b.label))) {
     const votes = new Map<string, number>();
@@ -216,33 +230,57 @@ export function companyMap(nodes: SGNode[], edges: SGEdge[], size: Size): MapLay
       if (t) votes.set(t, (votes.get(t) ?? 0) + 1);
     }
     const best = [...votes.entries()].sort((a, b) => b[1] - a[1])[0]?.[0];
-    (best ? groups.get(best) ?? noTeam : unowned).items.push(s.id);
+    (best ? groups.get(best) ?? noTeam : unowned).services.push(s.id);
   }
 
-  const all = [...groups.values(), noTeam, unowned].filter((g) => g.items.length > 0);
-  const usableH = Math.max(CHIP_H * 3, size.height - 24);
+  const all = [...groups.values(), noTeam, unowned].filter((g) => g.people.length + g.services.length > 0);
   const usableW = Math.max(CHIP_W + PAD * 2, size.width - 24);
-  const rowsFit = Math.max(2, Math.floor((usableH - HEADER - PAD * 2 + CHIP_GAP) / (CHIP_H + CHIP_GAP)));
 
-  // Size each island: as few columns as the height allows.
+  // Size each island: avatars form a roughly-square grid on top, service
+  // pills stack in a single column underneath (rarely more than a handful
+  // per team, so one column reads better than wrapping).
+  // The panel is wide and short, so each island is biased to use width
+  // (plentiful) rather than height (the scarce axis): people sit in one
+  // row until there are more than fit comfortably, services likewise.
   const sized = all.map((g) => {
-    const cols = Math.ceil(g.items.length / rowsFit);
-    const rows = Math.ceil(g.items.length / cols);
+    const avatarCols = g.people.length ? Math.min(g.people.length, 10) : 0;
+    const avatarRows = g.people.length ? Math.ceil(g.people.length / avatarCols) : 0;
+    const avatarBlockW = g.people.length ? avatarCols * AVATAR_CELL - AVATAR_GAP : 0;
+    const avatarBlockH = g.people.length ? avatarRows * AVATAR_CELL - AVATAR_GAP : 0;
+
+    // One row of services per island, same bias as avatars: rows are the
+    // scarce resource (the panel is short), columns are cheap (it is wide).
+    // Only wrap once a team has more services than fit comfortably in a row.
+    const svcCols = g.services.length === 0 ? 0 : g.services.length <= 5 ? g.services.length : Math.ceil(g.services.length / 2);
+    const svcRows = g.services.length ? Math.ceil(g.services.length / svcCols) : 0;
+    const svcBlockW = g.services.length ? svcCols * CHIP_W + (svcCols - 1) * CHIP_GAP : 0;
+    const svcBlockH = g.services.length ? svcRows * CHIP_H + (svcRows - 1) * CHIP_GAP : 0;
+
+    const gap = g.people.length && g.services.length ? BLOCK_GAP : 0;
+    const contentW = Math.max(avatarBlockW, svcBlockW);
+    const contentH = avatarBlockH + gap + svcBlockH;
+
+    // The island must be at least as wide as its own label, or a short
+    // "Nobody looks after these"-style name wraps across several lines.
+    // ~7.5px/char at the 15px label size, roughly (real glyph widths vary,
+    // but this only needs to be in the right neighbourhood).
+    const labelW = g.label.length * 7.5 + PAD * 2;
+
     return {
       g,
-      cols,
-      rows,
-      width: cols * CHIP_W + (cols - 1) * CHIP_GAP + PAD * 2,
-      height: HEADER + rows * CHIP_H + (rows - 1) * CHIP_GAP + PAD * 2,
+      avatarCols,
+      svcCols,
+      avatarBlockW,
+      svcBlockW,
+      avatarBlockH,
+      width: Math.max(contentW + PAD * 2, labelW),
+      height: HEADER + contentH + PAD * 2,
     };
   });
 
   // Shelf-pack islands left to right, wrapping to a new row of islands once
-  // the panel's width runs out. A single long row (the old behaviour) left
-  // most of a short, wide panel's height unused and forced a tiny zoom to
-  // fit everything's width; packing into both axes keeps the whole map
-  // closer to the panel's own shape, so fitView lands on a bigger, readable
-  // zoom instead of shrinking labels to fit one giant row.
+  // the panel's width runs out, so the whole map stays close to the panel's
+  // own shape instead of one wide strip that forces a tiny fit-to-width zoom.
   const positions: Positions = new Map();
   const islands: Island[] = [];
   let x = 0;
@@ -255,14 +293,29 @@ export function companyMap(nodes: SGNode[], edges: SGEdge[], size: Size): MapLay
       shelfH = 0;
     }
     islands.push({ id: s.g.id, label: s.g.label, x, y, width: s.width, height: s.height, warn: s.g.warn });
-    s.g.items.forEach((id, i) => {
-      const col = Math.floor(i / s.rows);
-      const row = i % s.rows;
+
+    const contentW = s.width - PAD * 2;
+    const avatarX = x + PAD + (contentW - s.avatarBlockW) / 2;
+    s.g.people.forEach((id, i) => {
+      const col = i % s.avatarCols;
+      const row = Math.floor(i / s.avatarCols);
       positions.set(id, {
-        x: x + PAD + col * (CHIP_W + CHIP_GAP) + CHIP_W / 2,
-        y: y + HEADER + PAD + row * (CHIP_H + CHIP_GAP) + CHIP_H / 2,
+        x: avatarX + col * AVATAR_CELL + AVATAR / 2,
+        y: y + HEADER + PAD + row * AVATAR_CELL + AVATAR / 2,
       });
     });
+
+    const svcY = y + HEADER + PAD + s.avatarBlockH + (s.g.people.length && s.g.services.length ? BLOCK_GAP : 0);
+    const svcX = x + PAD + (contentW - s.svcBlockW) / 2;
+    s.g.services.forEach((id, i) => {
+      const col = i % s.svcCols;
+      const row = Math.floor(i / s.svcCols);
+      positions.set(id, {
+        x: svcX + col * (CHIP_W + CHIP_GAP) + CHIP_W / 2,
+        y: svcY + row * (CHIP_H + CHIP_GAP) + CHIP_H / 2,
+      });
+    });
+
     x += s.width + ISLAND_GAP;
     shelfH = Math.max(shelfH, s.height);
   }
