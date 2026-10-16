@@ -169,9 +169,7 @@ export function Home({ welcomeDone }: { welcomeDone: boolean }) {
         <VeraOverlay
           probes={probes}
           onClose={() => setShowVera(false)}
-          onRespond={async (probeId, text) => {
-            await spine.respond(probeId, text);
-          }}
+          onRespond={(probeId, text) => spine.respond(probeId, text)}
         />
       )}
     </div>

@@ -701,6 +701,9 @@ async def list_probes():
     result = ro_query(
         """MATCH (vt:VerifyTask)
            WHERE vt.status = 'open'
+           OPTIONAL MATCH (newer:Claim)-[:SUPERSEDES]->(old:Claim {id: vt.claim_id})
+           WITH vt, count(newer) AS replaced
+           WHERE replaced = 0
            OPTIONAL MATCH (fx:Finding)-[:RAISED_BY]->(vt)
            WITH vt, collect(fx) AS fs
            WITH vt, head(fs) AS f, [x IN fs | x.kind] AS kinds
@@ -811,10 +814,12 @@ async def vera_respond(resp: VeraResponse, request: Request):
         """MATCH (vt:VerifyTask {id: $id})
            OPTIONAL MATCH (c:Claim {id: vt.claim_id})
            OPTIONAL MATCH (c)-[:ABOUT]->(target)
+           OPTIONAL MATCH (newer:Claim)-[:SUPERSEDES]->(c)
            RETURN vt.claim_id, vt.status, vt.question,
                   c.text, c.fact_type, c.half_life_days,
                   target.id,
-                  CASE WHEN target.name IS NOT NULL THEN target.name ELSE target.id END""",
+                  CASE WHEN target.name IS NOT NULL THEN target.name ELSE target.id END,
+                  count(newer) > 0 AS replaced""",
         {"id": resp.probe_id}
     )
 
@@ -825,6 +830,7 @@ async def vera_respond(resp: VeraResponse, request: Request):
     claim_id, status, probe_question = row[0], row[1], row[2]
     claim_text, fact_type, half_life = row[3], row[4], row[5]
     target_id, target_name = row[6], row[7]
+    already_replaced = bool(row[8])
 
     if status != "open":
         raise HTTPException(400, "Probe already answered")
@@ -871,8 +877,18 @@ async def vera_respond(resp: VeraResponse, request: Request):
     # reported instead of lingering forever.
     touched: list[str] = [claim_id, target_id]
 
+    # ── already replaced: nothing to confirm, and never revive it ────────
+    # Confirming a superseded claim would reset its timestamp and make a
+    # fact the human already corrected look current again. Record the
+    # answer, leave the claim alone.
+    if already_replaced:
+        verdict = "already_replaced"
+        changes.append(
+            f"Already replaced by a newer fact, so nothing changed: {(claim_text or claim_id)[:80]}"
+        )
+
     # ── confirm: the stored fact is still true, just stale ───────────────
-    if verdict == "confirm":
+    elif verdict == "confirm":
         query(
             """MATCH (c:Claim {id: $cid})
                SET c.asserted_at = $now, c.base_conf = 0.98""",
@@ -922,6 +938,14 @@ async def vera_respond(resp: VeraResponse, request: Request):
                 )
             except Exception as e:
                 print(f"⚠ could not embed corrected claim {new_claim_id}: {e}")
+
+            # Other probes still asking about the old claim are now moot.
+            query(
+                """MATCH (vt:VerifyTask {status: 'open', claim_id: $cid})
+                   SET vt.status = 'resolved', vt.resolved_at = $now,
+                       vt.resolved_by = 'superseded'""",
+                {"cid": claim_id, "now": now}
+            )
 
             touched.append(new_claim_id)
             changes.append(f"New fact recorded: {corrected_fact[:100]}")

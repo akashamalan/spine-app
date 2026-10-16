@@ -10,7 +10,8 @@ export function VeraOverlay({
 }: {
   probes: VeraProbe[];
   onClose: () => void;
-  onRespond: (probeId: string, answer: string) => Promise<void>;
+  /** Resolves true only when the backend accepted the answer. */
+  onRespond: (probeId: string, answer: string) => Promise<boolean>;
 }) {
   const [activeProbe, setActiveProbe] = useState<string | null>(
     probes[0]?.task_id || null
@@ -24,7 +25,10 @@ export function VeraOverlay({
     if (!activeProbe || !responseText.trim()) return;
     setSubmitting(true);
     try {
-      await onRespond(activeProbe, responseText.trim());
+      const accepted = await onRespond(activeProbe, responseText.trim());
+      // Keep the question and the typed answer on screen if it was refused,
+      // so nothing the human said is lost and they can try again.
+      if (!accepted) return;
       setResponseText("");
       // Move to next probe
       const remaining = probes.filter((p) => p.task_id !== activeProbe);

@@ -498,9 +498,26 @@ export function useSpine(): Spine {
             answer: text,
           }),
         });
-        const data = await res.json();
+        const data = await res.json().catch(() => null);
 
-        if (data.changes?.length) {
+        // A rejected answer (404 probe gone, 400 already answered, 500 …) must
+        // not look like success: say why, keep the question open, report false.
+        if (!res.ok) {
+          const detail = typeof data?.detail === "string" ? data.detail : null;
+          showToast({
+            title: "Vera didn't take that answer.",
+            lines: [detail ?? "SPINE's server didn't accept it. The question is still open — try again."],
+          });
+          await refreshProbes();
+          return false;
+        }
+
+        if (data?.verdict === "already_replaced") {
+          showToast({
+            title: "That fact was already replaced.",
+            lines: ["Nothing was changed. Your earlier correction still stands."],
+          });
+        } else if (data?.changes?.length) {
           showToast({ title: "Graph updated", lines: data.changes });
         }
 
@@ -509,6 +526,10 @@ export function useSpine(): Spine {
         return true;
       } catch (err) {
         console.error("Failed to respond to probe:", err);
+        showToast({
+          title: "Couldn't reach SPINE.",
+          lines: ["Your answer wasn't saved. The question is still open."],
+        });
         return false;
       }
     },
