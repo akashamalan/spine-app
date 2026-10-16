@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { AnimatePresence, motion, useReducedMotion } from "motion/react";
+import { AnimatePresence, motion } from "motion/react";
+import { useReducedMotion } from "../../lib/motion";
 import { API_BASE, type SimRun } from "../../lib/useSpine";
 import { apiFetch } from "../../lib/identity";
 import type { Finding, VeraProbe } from "../../lib/types";

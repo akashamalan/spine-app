@@ -1,6 +1,6 @@
 "use client";
 
-import { FlaskConical, MessageSquare, Network, Sparkles, TriangleAlert } from "lucide-react";
+import { Compass, FlaskConical, MessageSquare, Network, Settings as Gear, Sparkles, TriangleAlert } from "lucide-react";
 import type { ReactNode } from "react";
 import type { WinId } from "./presets";
 
@@ -18,7 +18,7 @@ export type WinMeta = {
   short: string;
   icon: ReactNode;
   /** Alt+<n> opens or focuses this window. */
-  accel: number;
+  accel?: number;
   /** Only administrators get this window; the server guards what it calls. */
   admin?: boolean;
 };
@@ -38,6 +38,8 @@ export const WINDOWS: WinMeta[] = [
   { id: "answer", title: "The answer", short: "The answer", icon: <MessageSquare aria-hidden size={SIZE} />, accel: 4 },
   { id: "vera", title: "Vera", short: "Vera", icon: <VeraMark />, accel: 5 },
   { id: "sim", title: "Simulation", short: "Simulation", icon: <FlaskConical aria-hidden size={SIZE} />, accel: 6, admin: true },
+  { id: "start", title: "Getting started", short: "Getting started", icon: <Compass aria-hidden size={SIZE} />, accel: 7 },
+  { id: "settings", title: "Settings", short: "Settings", icon: <Gear aria-hidden size={SIZE} />, accel: 8 },
 ];
 
 export const META: Record<WinId, WinMeta> = WINDOWS.reduce(
@@ -57,4 +59,4 @@ function VeraMark() {
 }
 
 /** The dock's running order, with the dividers between its groups. */
-export const DOCK_ORDER: (WinId | "divider")[] = ["ask", "graph", "noticed", "answer", "vera", "divider", "sim"];
+export const DOCK_ORDER: (WinId | "divider")[] = ["ask", "graph", "noticed", "answer", "vera", "divider", "sim", "divider", "settings"];

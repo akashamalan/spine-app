@@ -2,6 +2,8 @@
 
 import type { PointerEvent as ReactPointerEvent, ReactNode } from "react";
 import type { WinId } from "./presets";
+import { useContextMenu } from "./context/ContextMenuProvider";
+import { useMenus } from "./context/menus";
 import { useWindows } from "./windowStore";
 
 /** The three round buttons. Their glyphs only appear once the group is hovered
@@ -61,11 +63,14 @@ export function TitleBar({
 }) {
   const { close, minimize, toggleMax, state } = useWindows();
   const maximized = state.wins[id].maximized;
+  const menus = useMenus();
+  const { openMenu } = useContextMenu();
 
   return (
     <header
       onPointerDown={onDragStart}
       onDoubleClick={() => toggleMax(id)}
+      onContextMenu={(e) => menus && openMenu(e, menus.titleBar(id))}
       className="flex h-9 shrink-0 cursor-grab touch-none items-center gap-2 px-3 active:cursor-grabbing"
     >
       <div className="group/lights flex -space-x-1 items-center">

@@ -1,14 +1,21 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import { AnimatePresence, motion, useReducedMotion } from "motion/react";
-import type { BackendStatus, VeraProbe } from "../lib/types";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
+import { AnimatePresence, motion } from "motion/react";
+import { useReducedMotion } from "../lib/motion";
+import type { BackendStatus, Claim, Evidence, FeedbackResult, Finding, Toast, VeraProbe } from "../lib/types";
 import type { Identity } from "../lib/identity";
+import { usePrefs } from "../lib/uiPrefs";
 import { VeraList } from "../components/VeraList";
 import { Dock, type DockEntry, type DockHandle } from "./Dock";
 import { MenuBar } from "./MenuBar";
 import { VeraNotifications } from "./Notifications";
 import { Window } from "./Window";
+import { GettingStarted } from "./apps/GettingStarted";
+import { Settings } from "./apps/Settings";
+import { ContextMenuProvider, useContextMenu } from "./context/ContextMenuProvider";
+import { ActionsProvider, type Actions, type GraphApi } from "./context/actions";
+import { useMenus } from "./context/menus";
 import { DOCK_ORDER, META, WINDOWS } from "./windows.config";
 import { WIN_IDS, type WinId } from "./presets";
 import { WindowProvider, useIsFocused, useWindows } from "./windowStore";
@@ -22,8 +29,26 @@ export type OSPanels = {
   sim: ReactNode;
 };
 
+/** What the desktop needs from SPINE itself, handed over by the home screen so
+ * windows and menus can act without knowing how the app is wired. */
+export type ShellBridge = {
+  claims: Claim[];
+  evidence: Evidence[];
+  /** Submit a question. */
+  ask: (q: string) => void;
+  /** Why asking is not possible right now, in plain words, or null. */
+  askProblem: string | null;
+  notify: (toast: Toast) => void;
+  highlight: (id: string | null) => void;
+  showFinding: (f: Finding) => void;
+  graphApi: RefObject<GraphApi | null>;
+  veraAsk: (claimIds: string[], note?: string) => Promise<boolean>;
+  feedback: () => Promise<FeedbackResult>;
+};
+
 type ShellProps = {
   panels: OSPanels;
+  bridge: ShellBridge;
   probes: VeraProbe[];
   probesReady: boolean;
   identity: Identity;
@@ -43,13 +68,21 @@ type ShellProps = {
 export function OSShell(props: ShellProps) {
   return (
     <WindowProvider>
-      <Shell {...props} />
+      <ContextMenuProvider>
+        <Shell {...props} />
+      </ContextMenuProvider>
     </WindowProvider>
   );
 }
 
+const ONBOARDED = "spine-onboarded";
+/** Windows that are tools rather than part of the workspace: "Show all" and
+ * "Tidy" leave them alone. */
+const isUtility = (id: WinId) => id === "start" || id === "settings";
+
 function Shell({
   panels,
+  bridge,
   probes,
   probesReady,
   identity,
@@ -64,14 +97,15 @@ function Shell({
   askStatus,
   answerText,
 }: ShellProps) {
-  const { state, open, dockActivate, dockIcons, toggleMax } = useWindows();
+  const { state, open, close, tidy, dockActivate, dockIcons, toggleMax } = useWindows();
   const dock = useRef<DockHandle | null>(null);
   const [highlight, setHighlight] = useState<string | null>(null);
   const veraInFront = useIsFocused("vera");
+  const prefs = usePrefs();
   const isAdmin = identity.role === "admin";
   // Windows this person may have. The server still guards what they call;
   // this is only what is offered.
-  const allowed = WINDOWS.filter((w) => !w.admin || isAdmin).map((w) => w.id);
+  const allowed = useMemo(() => WINDOWS.filter((w) => !w.admin || isAdmin).map((w) => w.id), [isAdmin]);
   const reduce = useReducedMotion();
 
   /** Open a window and bring it forward. */
@@ -84,6 +118,55 @@ function Shell({
       document.querySelector<HTMLInputElement>("[data-ask-root] input")?.focus();
     });
   }, [reveal]);
+
+  const { ask, askProblem, notify, claims, evidence, highlight: setFocusId, showFinding, graphApi, veraAsk, feedback } = bridge;
+
+  // Everything a right-click menu may do, in one object. `askSpine` is the
+  // one way any menu or button asks a question: it makes sure the places the
+  // answer will appear are open, then submits.
+  const actions = useMemo<Actions>(
+    () => ({
+      me: identity,
+      isAdmin,
+      claims,
+      answer: answerText,
+      evidence,
+      allowed: allowed.filter((id) => !isUtility(id)),
+      focusAsk,
+      openWindow: reveal,
+      notify,
+      highlight: (id) => {
+        if (id) reveal("graph");
+        setFocusId(id);
+      },
+      showFinding: (f) => {
+        reveal("graph");
+        reveal("answer");
+        showFinding(f);
+      },
+      graphApi,
+      veraAsk,
+      feedback,
+      scan: onScan,
+      copy: (text, what) => {
+        navigator.clipboard
+          .writeText(text)
+          .then(() => notify({ title: `${what ?? "Text"} copied.`, lines: [] }))
+          .catch(() => notify({ title: "Couldn't copy.", lines: ["Your browser blocked the clipboard."] }));
+      },
+      askSpine: (text) => {
+        if (askProblem) {
+          notify({ title: "I can't ask that right now.", lines: [askProblem] });
+          return;
+        }
+        reveal("ask");
+        reveal("graph");
+        reveal("answer");
+        ask(text);
+      },
+    }),
+    [identity, isAdmin, claims, answerText, evidence, allowed, focusAsk, reveal, notify, setFocusId, showFinding, graphApi, veraAsk, feedback, onScan, askProblem, ask]
+  );
 
   // A question always needs somewhere to land, even if it was put away. Only
   // the moment the question starts counts: shutting the answer away while it
@@ -98,7 +181,22 @@ function Shell({
     wasAsking.current = asking;
   }, [askStatus, reveal]);
 
-  // Ctrl/⌘+K asks; Alt+1…5 open a window.
+  // First visit in this browser: show Getting started, once.
+  const greeted = useRef(false);
+  useEffect(() => {
+    if (!state.ready || greeted.current) return;
+    greeted.current = true;
+    try {
+      if (!localStorage.getItem(ONBOARDED)) {
+        localStorage.setItem(ONBOARDED, "1");
+        open("start");
+      }
+    } catch {
+      // Storage blocked: it just won't remember having shown it.
+    }
+  }, [state.ready, open]);
+
+  // Ctrl/⌘+K asks; Alt+1…8 open a window.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
@@ -107,7 +205,7 @@ function Shell({
         return;
       }
       if (e.altKey && !e.ctrlKey && !e.metaKey) {
-        const hit = WINDOWS.find((w) => String(w.accel) === e.key && allowed.includes(w.id));
+        const hit = WINDOWS.find((w) => w.accel !== undefined && String(w.accel) === e.key && allowed.includes(w.id));
         if (hit) {
           e.preventDefault();
           reveal(hit.id);
@@ -131,7 +229,11 @@ function Shell({
     return 0;
   };
 
-  const dockItems: DockEntry[] = DOCK_ORDER.filter((e) => e === "divider" ? isAdmin : allowed.includes(e)).map((entry) => {
+  // Dividers only where there are icons on both sides of them.
+  const order = DOCK_ORDER.filter((e) => e === "divider" || allowed.includes(e)).filter(
+    (e, i, all) => e !== "divider" || (i > 0 && i < all.length - 1 && all[i - 1] !== "divider")
+  );
+  const dockItems: DockEntry[] = order.map((entry) => {
     if (entry === "divider") return { separator: true as const };
     const meta = META[entry];
     const w = state.wins[entry];
@@ -145,15 +247,22 @@ function Shell({
     };
   });
 
+  // "Only my questions" is a view over the list the server already filtered.
+  const shownProbes = prefs.veraOnlyMine
+    ? probes.filter((p) => p.aimed_at?.some((a) => a.id === identity.personId))
+    : probes;
+
   const content: Record<WinId, ReactNode> = {
     noticed: panels.noticed,
     graph: panels.graph,
     answer: panels.answer,
     ask: <div data-ask-root>{panels.ask}</div>,
     sim: panels.sim,
+    start: <GettingStarted onAsk={(q) => actions.askSpine(q, { source: "getting-started" })} onSkip={() => close("start")} />,
+    settings: <Settings identity={identity} onSwitchPerson={onSwitchPerson} onResetLayout={tidy} />,
     vera: (
       <div className="min-h-0 flex-1 overflow-hidden px-5 pb-4 pt-1">
-        <VeraList probes={probes} onAnswer={onAnswerVera} highlight={highlight} />
+        <VeraList probes={shownProbes} onAnswer={onAnswerVera} highlight={highlight} />
       </div>
     ),
   };
@@ -162,7 +271,7 @@ function Shell({
   const answerStrip = graphMaxed && (askStatus === "asking" || askStatus === "done");
 
   return (
-    <>
+    <ActionsProvider value={actions}>
       <MenuBar
         stats={stats}
         findingCount={findingCount}
@@ -175,6 +284,8 @@ function Shell({
         allowed={allowed}
         onSwitchPerson={onSwitchPerson}
       />
+
+      <WallpaperLayer />
 
       {/* The desktop: windows live between the menu bar and the dock. */}
       <div className="pointer-events-none fixed inset-0 z-10">
@@ -228,11 +339,40 @@ function Shell({
         onHighlight={(taskId) => setHighlight(taskId)}
       />
 
-      <Dock
-        items={dockItems}
-        handle={dock}
-        onRegister={(key, el) => dockIcons.current.set(key as WinId, el)}
-      />
-    </>
+      <ShellDock items={dockItems} handle={dock} onRegister={(key, el) => dockIcons.current.set(key as WinId, el)} />
+    </ActionsProvider>
   );
+}
+
+/** Right-clicking the bare wallpaper. It sits behind every window, so a
+ * click on a window never reaches it. */
+function WallpaperLayer() {
+  const menus = useMenus();
+  const { openMenu } = useContextMenu();
+  return (
+    <div
+      aria-hidden
+      className="fixed inset-0 z-[5]"
+      onContextMenu={(e) => menus && openMenu(e, menus.wallpaper())}
+    />
+  );
+}
+
+function ShellDock({
+  items,
+  handle,
+  onRegister,
+}: {
+  items: DockEntry[];
+  handle: RefObject<DockHandle | null>;
+  onRegister: (key: string, el: HTMLElement | null) => void;
+}) {
+  const menus = useMenus();
+  const { openMenu } = useContextMenu();
+  const withMenus = items.map((it) =>
+    "separator" in it
+      ? it
+      : { ...it, onContextMenu: (e: Parameters<typeof openMenu>[0]) => menus && openMenu(e, menus.dock(it.key as WinId)) }
+  );
+  return <Dock items={withMenus} handle={handle} onRegister={onRegister} />;
 }

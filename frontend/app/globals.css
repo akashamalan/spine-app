@@ -422,3 +422,15 @@ h1, h2, h3,
   }
   .spine-flag-pulse { display: none; }
 }
+
+/* Right-click menu: 120ms scale + fade in; fade only for reduced motion. */
+@keyframes ctx-pop {
+  from { opacity: 0; transform: scale(0.96); }
+  to { opacity: 1; transform: scale(1); }
+}
+@keyframes ctx-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.ctx-pop { animation: ctx-pop 120ms ease-out; transform-origin: top left; }
+.ctx-fade { animation: ctx-fade 120ms ease-out; }

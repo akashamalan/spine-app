@@ -27,6 +27,8 @@ export type Claim = {
   asserted_at: number;
   half_life_days: number;
   age_days: number | null;
+  /** How many sources the backend counted behind `confidence` (the boost's input). */
+  source_count?: number;
   confidence: number;
   stale: boolean;
   about: { id: string; type: string; name: string } | null;

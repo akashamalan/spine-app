@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { animate, useReducedMotion } from "motion/react";
+import { animate } from "motion/react";
+import { useReducedMotion } from "../lib/motion";
 
 /** A number that counts from its last value to the new one when it changes. */
 export function CountUp({ value }: { value: number }) {

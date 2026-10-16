@@ -1,10 +1,14 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { AnimatePresence, motion, useReducedMotion } from "motion/react";
+import { AnimatePresence, motion } from "motion/react";
+import { useReducedMotion } from "../lib/motion";
 import { Star } from "lucide-react";
 import type { Claim, Finding } from "../lib/types";
 import { StatsStrip } from "./StatsStrip";
+import { usePrefs } from "../lib/uiPrefs";
+import { useContextMenu } from "../os/context/ContextMenuProvider";
+import { useMenus } from "../os/context/menus";
 import {
   displayName,
   findingLabel,
@@ -48,7 +52,7 @@ function writeWatching(ids: string[]) {
 }
 
 export function NoticedPanel({
-  findings,
+  findings: allFindings,
   selected,
   onSelect,
   claims,
@@ -61,6 +65,18 @@ export function NoticedPanel({
   resolvedThisWeek: number | null;
 }) {
   const reduce = useReducedMotion();
+  const menus = useMenus();
+  const { openMenu } = useContextMenu();
+  const { hiddenFindings, noticedOnlyUrgent } = usePrefs();
+  // What this person chose to hide, or only the urgent ones, is a view over
+  // the list. Nothing is deleted and the counts follow what is shown.
+  const findings = useMemo(
+    () =>
+      allFindings.filter(
+        (f) => !hiddenFindings.includes(f.finding_id) && (!noticedOnlyUrgent || severityLabel(f.severity) === "Urgent")
+      ),
+    [allFindings, hiddenFindings, noticedOnlyUrgent]
+  );
   const [filter, setFilter] = useState<Filter>(null);
   const [watching, setWatching] = useState<string[]>([]);
   // 0 until mounted: the clock must not be read while prerendering.
@@ -200,6 +216,7 @@ export function NoticedPanel({
                       animate={{ opacity: 1, x: 0 }}
                       exit={{ opacity: 0 }}
                       transition={SPRING}
+                      onContextMenu={(e) => menus && openMenu(e, menus.finding(f, { x: e.clientX, y: e.clientY }))}
                       className={`group relative rounded-2xl transition-colors ${
                         isSelected ? "bg-white/[0.14] ring-1 ring-white/25" : "hover:bg-white/[0.06]"
                       }`}

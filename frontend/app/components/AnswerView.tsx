@@ -1,10 +1,13 @@
 "use client";
 
 import { useEffect, useState, type ReactNode } from "react";
-import { AnimatePresence, motion, useReducedMotion } from "motion/react";
+import { AnimatePresence, motion } from "motion/react";
+import { useReducedMotion } from "../lib/motion";
 import { Check, ChevronDown, Copy, RotateCcw, ThumbsDown, ThumbsUp, X } from "lucide-react";
 import TextType from "./TextType";
 import { EXAMPLE_QUESTIONS } from "./AskBar";
+import { useContextMenu } from "../os/context/ContextMenuProvider";
+import { useMenus } from "../os/context/menus";
 import type {
   AskStatus,
   Evidence,
@@ -254,6 +257,8 @@ function TalkTo({ people }: { people: Person[] }) {
   );
 }
 
+/** Right-click an evidence row for the maths behind its trust, who said it,
+ * or where it sits on the graph. */
 function FactsUsed({
   evidence,
   replaced,
@@ -265,6 +270,14 @@ function FactsUsed({
 }) {
   const reduce = useReducedMotion();
   const [open, setOpen] = useState(false);
+  const menus = useMenus();
+  const { openMenu } = useContextMenu();
+  // "Show evidence" in the answer's right-click menu opens this list.
+  useEffect(() => {
+    const show = () => setOpen(true);
+    window.addEventListener("spine:open-evidence", show);
+    return () => window.removeEventListener("spine:open-evidence", show);
+  }, []);
   if (evidence.length === 0 && replaced.length === 0) return null;
   return (
     <div className="rounded-2xl bg-white/[0.04]">
@@ -294,7 +307,13 @@ function FactsUsed({
               const c = confidenceLabel(e.confidence);
               const date = factDates[e.claim_id];
               return (
-                <li key={e.claim_id} className="flex gap-3">
+                <li
+                  key={e.claim_id}
+                  onContextMenu={(ev) =>
+                    menus && openMenu(ev, menus.evidence(e.claim_id, e.text, { x: ev.clientX, y: ev.clientY }))
+                  }
+                  className="flex gap-3"
+                >
                   <Dot className={`mt-[7px] ${confidenceBgClass(c.token)}`} />
                   <span className="min-w-0">
                     <span className="block text-[15px] leading-snug">{e.text}</span>
@@ -544,6 +563,8 @@ export function AnswerView({
   askDisabled: boolean;
 }) {
   const reduce = useReducedMotion();
+  const menus = useMenus();
+  const { openMenu } = useContextMenu();
 
   let view: { key: string; node: ReactNode };
   if (selectedFinding && status !== "asking") {
@@ -575,7 +596,12 @@ export function AnswerView({
       key: `answer-${answer}`,
       node: (
         <div className="flex flex-col gap-4 pt-1">
-          <WordReveal text={answer} />
+          {/* Right-click the answer to copy it, see its sources, or say it looks wrong. */}
+          <div
+            onContextMenu={(e) => menus && openMenu(e, menus.answer(window.getSelection()?.toString().trim() ?? ""))}
+          >
+            <WordReveal text={answer} />
+          </div>
           <div className="flex flex-wrap items-center justify-between gap-2">
             <ConfidencePill evidence={evidence} hops={hops} />
             <Actions answer={answer} onFeedback={onFeedback} notify={notify} />

@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { motion, useReducedMotion } from "motion/react";
+import { motion } from "motion/react";
+import { useReducedMotion } from "../lib/motion";
 import { API_BASE } from "../lib/useSpine";
 import { setIdentity, type Role } from "../lib/identity";
 import { avatarStyle, initials } from "../lib/people";

@@ -1309,9 +1309,15 @@ async def list_claims():
     claims = []
     for (cid, text, fact_type, base_conf, asserted_at, half_life,
          eid, etype, ename, src_type, src_title) in r.result_set:
-        conf = compute_confidence(base_conf, half_life, asserted_at, now_epoch=now)
+        # compute_confidence counts one source per claim, and so does this
+        # number: it is the exact input behind `confidence`, shown so the
+        # arithmetic can be checked.
+        source_count = 1
+        conf = compute_confidence(base_conf, half_life, asserted_at,
+                                  source_count=source_count, now_epoch=now)
         claims.append({
             "id": cid,
+            "source_count": source_count,
             "text": text,
             "fact_type": fact_type,
             "base_conf": base_conf,

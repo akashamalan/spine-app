@@ -21,6 +21,7 @@ import {
   type ReactNode,
   type RefObject,
 } from "react";
+import { prefersReducedMotion } from "../lib/motion";
 import "./Dock.css";
 
 export type DockItem = {
@@ -97,7 +98,7 @@ export function Dock({
     const root = rootRef.current;
     if (!root) return;
 
-    const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
+    const reduce = prefersReducedMotion();
     const pointer = { at: 0, inside: false };
     let focused = -1;
     let raf = 0;

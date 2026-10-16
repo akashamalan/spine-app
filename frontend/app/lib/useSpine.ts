@@ -139,6 +139,8 @@ export type Spine = {
   /** Abort the running ask. Whatever already arrived stays on screen. */
   stopAsking: () => void;
   scan: () => Promise<void>;
+  /** Admin: have Vera check these facts with a person. Resolves true once asked. */
+  veraAsk: (claimIds: string[], note?: string) => Promise<boolean>;
   /** 👎 on the current answer: asks Vera to re-check its facts. */
   feedback: (reason?: string) => Promise<FeedbackResult>;
   notify: (toast: Toast) => void;
@@ -547,6 +549,43 @@ export function useSpine(): Spine {
     [loadCompanyMap, loadFactDates, refreshGraphStats, refreshProbes, refreshResolvedCount, showToast]
   );
 
+  const veraAsk = useCallback(
+    async (claimIds: string[], note?: string): Promise<boolean> => {
+      if (claimIds.length === 0) return false;
+      try {
+        const res = await apiFetch(`${API_BASE}/api/vera/ask`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ claim_ids: claimIds, note, requested_by: getIdentity()?.name }),
+        });
+        const data = await res.json().catch(() => null);
+        if (!res.ok) {
+          showToast({
+            title: res.status === 403 ? "Only administrators can do that." : "Vera couldn't take that.",
+            lines: [typeof data?.message === "string" ? data.message : "SPINE's server didn't accept it."],
+          });
+          return false;
+        }
+        const results: { status: string }[] = data?.results ?? [];
+        const asked = results.filter((r) => r.status === "asked").length;
+        showToast({
+          title: asked > 0 ? "Vera is on it." : "Already being checked.",
+          lines: [
+            asked > 0
+              ? `${asked} ${asked === 1 ? "question was" : "questions were"} sent to the right people.`
+              : "Those facts already have an open question.",
+          ],
+        });
+        await refreshProbes();
+        return true;
+      } catch {
+        showToast({ title: "Vera couldn't take that.", lines: ["SPINE's server didn't answer. Try again in a moment."] });
+        return false;
+      }
+    },
+    [refreshProbes, showToast]
+  );
+
   const stopAsking = useCallback(() => {
     askAbortRef.current?.abort();
   }, []);
@@ -698,6 +737,7 @@ export function useSpine(): Spine {
     lastSim,
     simRunning,
     simulate,
+    veraAsk,
     ask,
     stopAsking,
     scan,

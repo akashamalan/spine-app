@@ -1,9 +1,19 @@
 "use client";
 import dynamic from "next/dynamic";
+import { usePrefs, type Wallpaper } from "../lib/uiPrefs";
 
 const GradientASCII = dynamic(() => import("./GradientASCII"), { ssr: false });
 
+/** How lively the wallpaper is. The same one canvas throughout: only these two
+ * knobs change, and the shader reads them live. */
+const MOOD: Record<Wallpaper, { speed: number; flicker: number }> = {
+  calm: { speed: 0.4, flicker: 0.05 },
+  normal: { speed: 1, flicker: 0.2 },
+  lively: { speed: 1.8, flicker: 0.4 },
+};
+
 export function Backdrop() {
+  const { speed, flicker } = MOOD[usePrefs().wallpaper];
   return (
     <div aria-hidden style={{ position: "fixed", inset: 0, zIndex: 0, background: "#000" }}>
       <GradientASCII
@@ -15,11 +25,11 @@ export function Backdrop() {
         glyphOpacity={0.85}
         glow={0.2}
         depthOfField={0}
-        flicker={0.2}
+        flicker={flicker}
         softness={0.5}
         scale={1}
         flow={0.5}
-        speed={1}
+        speed={speed}
         gradientOpacity={0.9}
         grain={0.08}
         variation={0}

@@ -151,6 +151,8 @@ export function MenuBar({
   const { state, open, showAll, hideAll, tidy } = useWindows();
   const [openName, setOpenName] = useState<string | null>(null);
   const mod = useModKey();
+  // "All windows" means the workspace; Getting started and Settings are tools.
+  const workspace = allowed.filter((id) => id !== "start" && id !== "settings");
 
   // A click anywhere else, or Esc, closes the menu — never a window.
   useEffect(() => {
@@ -202,8 +204,8 @@ export function MenuBar({
         openName={openName}
         setOpenName={setOpenName}
         rows={[
-          { label: "Show all windows", onSelect: () => showAll(allowed) },
-          { label: "Hide all windows", onSelect: () => hideAll(allowed) },
+          { label: "Show all windows", onSelect: () => showAll(workspace) },
+          { label: "Hide all windows", onSelect: () => hideAll(workspace) },
           { label: "Tidy windows", onSelect: tidy },
         ]}
       />
@@ -213,10 +215,20 @@ export function MenuBar({
         setOpenName={setOpenName}
         rows={WINDOWS.filter((w) => allowed.includes(w.id)).map((w) => ({
           label: w.short,
-          shortcut: `Alt+${w.accel}`,
+          shortcut: w.accel ? `Alt+${w.accel}` : undefined,
           checked: state.wins[w.id].open,
           onSelect: () => open(w.id),
         }))}
+      />
+
+      <Menu
+        name="Help"
+        openName={openName}
+        setOpenName={setOpenName}
+        rows={[
+          { label: "Getting started", onSelect: () => open("start") },
+          { label: "About SPINE", onSelect: () => open("settings") },
+        ]}
       />
 
       <div className="ml-auto flex items-center gap-3">

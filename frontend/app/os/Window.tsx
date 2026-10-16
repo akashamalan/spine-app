@@ -1,14 +1,8 @@
 "use client";
 
 import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import {
-  animate,
-  motion,
-  useDragControls,
-  useMotionValue,
-  useReducedMotion,
-  type MotionValue,
-} from "motion/react";
+import { animate, motion, useDragControls, useMotionValue, type MotionValue } from "motion/react";
+import { useReducedMotion } from "../lib/motion";
 import { GripVertical } from "lucide-react";
 import { KEEP_VISIBLE, TITLE_H, type WinId } from "./presets";
 import { TitleBar } from "./TitleBar";
@@ -180,7 +174,7 @@ export function Window({
           // No traffic lights: a grip on the left edge is the whole chrome.
           <div className="flex h-full min-h-0 items-stretch">
             <div
-              onPointerDown={(e) => dragControls.start(e)}
+              onPointerDown={(e) => e.button === 0 && dragControls.start(e)}
               title={`Move ${title}`}
               aria-label={`Move ${title}`}
               className="flex w-5 shrink-0 cursor-grab touch-none items-center justify-center text-white/35 hover:text-white/70 active:cursor-grabbing"
@@ -195,7 +189,10 @@ export function Window({
               id={id}
               title={title}
               focused={focused}
-              onDragStart={(e) => dragControls.start(e)}
+              onDragStart={(e) => {
+                // Only the primary button drags; right-click opens the window menu.
+                if (e.button === 0) dragControls.start(e);
+              }}
               right={<span ref={setSlot} className="flex items-center gap-1" />}
             />
             <ChromeCtx.Provider value={chrome}>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { GraphPanel } from "./graph/GraphPanel";
 import { VeraOverlay } from "./VeraOverlay";
 import { Backdrop } from "./Backdrop";
@@ -10,7 +10,9 @@ import { NoticedPanel } from "./NoticedPanel";
 import { AskBar, askBlockedReason } from "./AskBar";
 import { AnswerView } from "./AnswerView";
 import { VeraList } from "./VeraList";
-import { OSShell } from "../os/OSShell";
+import { OSShell, type ShellBridge } from "../os/OSShell";
+import type { GraphApi } from "../os/context/actions";
+import type { Finding } from "../lib/types";
 import { Simulation } from "../os/apps/Simulation";
 import { setIdentity, useIdentity } from "../lib/identity";
 import { useSpine } from "../lib/useSpine";
@@ -55,6 +57,10 @@ export function Home({ welcomeDone }: { welcomeDone: boolean }) {
   const [question, setQuestion] = useState("");
   const [recent, setRecent] = useState<string[]>([]);
   const [showVera, setShowVera] = useState(false);
+  // A node lit up from a right-click menu; a finding the person picked wins
+  // over nothing, and this wins over a finding.
+  const [graphFocus, setGraphFocus] = useState<string | null>(null);
+  const graphApi = useRef<GraphApi | null>(null);
 
   // localStorage only exists in the browser, so read it after mount.
   useEffect(() => {
@@ -69,6 +75,7 @@ export function Home({ welcomeDone }: { welcomeDone: boolean }) {
     const text = q.trim();
     if (!text || spine.isAsking || blocked) return;
     setQuestion(text);
+    setGraphFocus(null);
     spine.setSelectedFinding(null);
     setMobileView("ask");
     setRecent((prev) => {
@@ -91,6 +98,7 @@ export function Home({ welcomeDone }: { welcomeDone: boolean }) {
       findings={findings}
       selected={selectedFinding}
       onSelect={(f) => {
+        setGraphFocus(null);
         spine.setSelectedFinding(f);
         // On a phone the detail lives in the Ask view.
         if (f) setMobileView("ask");
@@ -104,7 +112,8 @@ export function Home({ welcomeDone }: { welcomeDone: boolean }) {
     <GraphPanel
       hops={hops}
       status={spine.askStatus}
-      highlightId={selectedFinding?.target_id ?? null}
+      highlightId={graphFocus ?? selectedFinding?.target_id ?? null}
+      apiRef={graphApi}
       backendUp={backend.graph === "up"}
       companyMap={spine.companyMap}
       companyMapFailed={spine.companyMapFailed}
@@ -143,6 +152,28 @@ export function Home({ welcomeDone }: { welcomeDone: boolean }) {
     />
   );
 
+  const askProblem = spine.isAsking ? "SPINE is still working on your last question." : askBlockedReason(backend);
+  const bridge = useMemo<ShellBridge>(
+    () => ({
+      claims: spine.claims,
+      evidence: spine.evidence,
+      ask: askQuestion,
+      askProblem,
+      notify: spine.notify,
+      highlight: setGraphFocus,
+      showFinding: (f: Finding) => {
+        setGraphFocus(null);
+        spine.setSelectedFinding(f);
+      },
+      graphApi,
+      veraAsk: spine.veraAsk,
+      feedback: spine.feedback,
+    }),
+    // askQuestion closes over the latest question state; it is rebuilt each render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [spine.claims, spine.evidence, askProblem, spine.notify, spine.veraAsk, spine.feedback, spine.setSelectedFinding, spine.isAsking, blocked, recent]
+  );
+
   const urgentCount = findings.filter((f) => severityLabel(f.severity) === "Urgent").length;
 
   return (
@@ -152,6 +183,7 @@ export function Home({ welcomeDone }: { welcomeDone: boolean }) {
       {/* Nobody is picked yet (or "Switch person" was used): the picker is up. */}
       {desktop === true && identity && (
         <OSShell
+          bridge={bridge}
           panels={{
             noticed,
             graph,

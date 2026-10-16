@@ -10,6 +10,7 @@ import {
   useRef,
   type ReactNode,
 } from "react";
+import { getPrefs } from "../lib/uiPrefs";
 import {
   LAYOUT_KEY,
   NARROW,
@@ -248,6 +249,8 @@ function readSaved(): Saved | null {
       localStorage.removeItem(LAYOUT_KEY);
       return null;
     }
+    // Turned off in Settings: start from the preset every time.
+    if (!getPrefs().rememberLayout) return null;
     const raw = localStorage.getItem(LAYOUT_KEY);
     if (!raw) return null;
     const parsed: unknown = JSON.parse(raw);
@@ -322,6 +325,10 @@ export function WindowProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!state.ready) return;
     try {
+      if (!getPrefs().rememberLayout) {
+        localStorage.removeItem(LAYOUT_KEY);
+        return;
+      }
       const out: Saved = {};
       for (const id of WIN_IDS) {
         const w = state.wins[id];
@@ -377,6 +384,11 @@ export function WindowProvider({ children }: { children: ReactNode }) {
   const value = useMemo<Ctx>(() => ({ state, dockIcons, ...actions }), [state, actions]);
 
   return <WindowCtx.Provider value={value}>{children}</WindowCtx.Provider>;
+}
+
+/** For components that also render on a phone, where there are no windows. */
+export function useWindowsMaybe(): Ctx | null {
+  return useContext(WindowCtx);
 }
 
 export function useWindows(): Ctx {

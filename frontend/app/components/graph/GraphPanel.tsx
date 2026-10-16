@@ -1,7 +1,7 @@
 "use client";
 
 import "@xyflow/react/dist/style.css";
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type MutableRefObject, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import {
   ReactFlow,
@@ -12,12 +12,15 @@ import {
   type Node,
   type ReactFlowInstance,
 } from "@xyflow/react";
-import { useReducedMotion } from "motion/react";
+import { useReducedMotion } from "../../lib/motion";
 import { Check, ChevronDown, Copy, Info, Scan, Terminal, X, Zap } from "lucide-react";
 import { useWindowChrome } from "../../os/Window";
+import { useContextMenu } from "../../os/context/ContextMenuProvider";
+import { useMenus } from "../../os/context/menus";
+import type { GraphApi } from "../../os/context/actions";
 import useMeasure from "react-use-measure";
 import type { AskStatus, HopEvent } from "../../lib/types";
-import { isFlagged, layoutForHops, mergeHops, type MEdge, type Merged, type Subgraph } from "./model";
+import { isFlagged, layoutForHops, mergeHops, type MEdge, type Merged, type SGNode, type Subgraph } from "./model";
 import { blastLayout, companyMap, egoLayout, pathLayout, type Positions, type Size } from "./layouts";
 import { NODE_TYPES, type IslandData, type NodeData } from "./nodes";
 import { EDGE_TYPES, PATH_BLUE, type EdgeData, type EdgeKind } from "./edges";
@@ -464,6 +467,7 @@ export function GraphPanel({
   backendUp,
   companyMap: map,
   companyMapFailed: failed,
+  apiRef,
 }: {
   hops: HopEvent[];
   status: AskStatus;
@@ -471,6 +475,8 @@ export function GraphPanel({
   backendUp: boolean;
   companyMap: Subgraph | null;
   companyMapFailed: boolean;
+  /** Lets menus outside the panel drive Fit, the drawer, the legend and the Cypher. */
+  apiRef?: MutableRefObject<GraphApi | null>;
 }) {
   const [ref, bounds] = useMeasure();
   const size = useMemo(() => ({ width: bounds.width, height: bounds.height }), [bounds.width, bounds.height]);
@@ -487,6 +493,9 @@ export function GraphPanel({
   const neverAsked = hops.length === 0 && status !== "asking";
 
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [legendHidden, setLegendHidden] = useState(false);
+  const menus = useMenus();
+  const { openMenu } = useContextMenu();
   // On the desktop the window's own title bar lends us its right-hand end, so
   // Fit and the Cypher drawer travel with the chrome, and the green button is
   // what makes the graph fill the screen. On a phone there is no window, and
@@ -501,6 +510,39 @@ export function GraphPanel({
     const inst = showQuestion ? questionFlowRef.current : idleFlowRef.current;
     inst?.fitView({ padding: 0.12, duration: motion ? 400 : 0, maxZoom: 1.25 });
   }, [showQuestion, motion]);
+
+  // Hand the panel's controls to the right-click menus.
+  useEffect(() => {
+    if (!apiRef) return;
+    const api: GraphApi = {
+      fit: handleFit,
+      toggleDrawer: () => setDrawerOpen((v) => !v),
+      toggleLegend: () => setLegendHidden((v) => !v),
+      legendHidden,
+      lastCypher: () => [...hopRows(hops)].reverse().find((r) => r.cypher)?.cypher ?? null,
+    };
+    apiRef.current = api;
+    return () => {
+      if (apiRef.current === api) apiRef.current = null;
+    };
+  }, [apiRef, handleFit, legendHidden, hops]);
+
+  // Right-click a person, service or document for what you can ask about it;
+  // right-click the empty canvas for the graph's own controls.
+  const onNodeContextMenu = useCallback(
+    (e: React.MouseEvent | MouseEvent, node: Node) => {
+      const n = (node.data as { n?: SGNode } | undefined)?.n;
+      if (!n || !menus) return;
+      openMenu(e, menus.node(n, { x: e.clientX, y: e.clientY }));
+    },
+    [menus, openMenu]
+  );
+  const onPaneContextMenu = useCallback(
+    (e: React.MouseEvent | MouseEvent) => {
+      if (menus) openMenu(e, menus.canvas());
+    },
+    [menus, openMenu]
+  );
 
   const controls = (
     <>
@@ -549,6 +591,8 @@ export function GraphPanel({
               nodeTypes={NODE_TYPES}
               zoomOnScroll={zoomable}
               preventScrolling={zoomable}
+              onNodeContextMenu={onNodeContextMenu}
+              onPaneContextMenu={onPaneContextMenu}
             >
               <Camera
                 frameKey={`map-${idle.nodes.length}-${size.width}-${size.height}-${highlightId ?? ""}-${maximized}`}
@@ -583,6 +627,8 @@ export function GraphPanel({
               edgeTypes={EDGE_TYPES}
               zoomOnScroll={zoomable}
               preventScrolling={zoomable}
+              onNodeContextMenu={onNodeContextMenu}
+              onPaneContextMenu={onPaneContextMenu}
             >
               {/* Each hop: glide to what it drew. The answer: frame the whole walk. */}
               <Camera
@@ -597,7 +643,7 @@ export function GraphPanel({
           </ReactFlowProvider>
         </div>
 
-        <Legend />
+        {!legendHidden && <Legend />}
         <Drawer open={drawerOpen} onClose={() => setDrawerOpen(false)} hops={hops} />
       </div>
     </div>
