@@ -25,11 +25,18 @@ function Note({
   const reduce = useReducedMotion();
   const [paused, setPaused] = useState(false);
 
+  // The parent hands over a fresh callback on every render, and a render
+  // happens whenever findings stream in. Keep the latest one in a ref so the
+  // 8 seconds are measured from the card's arrival, not from the last render.
+  const dismiss = useRef(onDismiss);
+  useEffect(() => {
+    dismiss.current = onDismiss;
+  });
   useEffect(() => {
     if (paused) return;
-    const t = setTimeout(onDismiss, LIFE_MS);
+    const t = setTimeout(() => dismiss.current(), LIFE_MS);
     return () => clearTimeout(t);
-  }, [paused, onDismiss]);
+  }, [paused]);
 
   const enter = reduce ? { opacity: 0 } : { opacity: 0, x: 24 };
 
@@ -48,7 +55,10 @@ function Note({
       className="glass-strong pointer-events-auto w-[320px] rounded-2xl p-3.5 shadow-2xl"
     >
       <p className="text-[13px] text-white/70">
-        Vera is asking about {displayName(card.probe.target_name, "something in the graph")}
+        Vera is asking{" "}
+        {card.probe.asked_of
+          ? card.probe.asked_of.split(" ")[0]
+          : `about ${displayName(card.probe.target_name, "something in the graph")}`}
       </p>
       <p className="mt-1 text-[15px] leading-snug">{card.probe.question}</p>
       <div className="mt-3 flex gap-2">
@@ -73,6 +83,8 @@ function Note({
 
 export function VeraNotifications({
   probes,
+  /** False until the first list for this person has arrived. */
+  ready,
   /** When Vera is already in front, the row lights up instead of a card. */
   veraInFront,
   onBounce,
@@ -80,6 +92,7 @@ export function VeraNotifications({
   onHighlight,
 }: {
   probes: VeraProbe[];
+  ready: boolean;
   veraInFront: boolean;
   onBounce: () => void;
   onOpenProbe: (taskId: string) => void;
@@ -95,8 +108,13 @@ export function VeraNotifications({
   });
 
   useEffect(() => {
+    // Nothing has been read for this person yet, so there is nothing to compare.
+    if (!ready) {
+      seen.current = null;
+      return;
+    }
     // The first list is simply what was already waiting; only what turns up
-    // afterwards — from a scan — is news worth interrupting someone for.
+    // afterwards — from a scan or a simulation — is worth interrupting someone for.
     if (seen.current === null) {
       seen.current = new Set(probes.map((p) => p.task_id));
       return;
@@ -114,7 +132,7 @@ export function VeraNotifications({
       return;
     }
     setCards((prev) => [...fresh.map((p) => ({ id: p.task_id, probe: p })), ...prev].slice(0, MAX_STACK));
-  }, [probes]);
+  }, [probes, ready]);
 
   return (
     // Sits under the menu bar on the right. Vera's own window, and the Undo

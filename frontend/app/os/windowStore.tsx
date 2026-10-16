@@ -59,8 +59,8 @@ type Action =
   | { type: "move"; id: WinId; x: number; y: number }
   | { type: "resetOne"; id: WinId }
   | { type: "tidy" }
-  | { type: "showAll" }
-  | { type: "hideAll" };
+  | { type: "showAll"; ids: WinId[] }
+  | { type: "hideAll"; ids: WinId[] };
 
 type SavedWin = {
   open: boolean;
@@ -223,13 +223,13 @@ function reducer(state: State, action: Action): State {
 
     case "showAll": {
       const wins = { ...state.wins };
-      for (const id of WIN_IDS) wins[id] = { ...wins[id], open: true, minimized: false };
+      for (const id of action.ids) wins[id] = { ...wins[id], open: true, minimized: false };
       return { ...state, wins };
     }
 
     case "hideAll": {
       const wins = { ...state.wins };
-      for (const id of WIN_IDS) if (wins[id].open) wins[id] = { ...wins[id], minimized: true };
+      for (const id of action.ids) if (wins[id].open) wins[id] = { ...wins[id], minimized: true };
       return { ...state, wins };
     }
   }
@@ -287,8 +287,9 @@ type Ctx = {
   move: (id: WinId, x: number, y: number) => void;
   resetOne: (id: WinId) => void;
   tidy: () => void;
-  showAll: () => void;
-  hideAll: () => void;
+  /** The ids are the windows this person is allowed to have. */
+  showAll: (ids?: WinId[]) => void;
+  hideAll: (ids?: WinId[]) => void;
   /** What a dock click should do, given what the window is doing now. */
   dockActivate: (id: WinId) => void;
 };
@@ -361,8 +362,8 @@ export function WindowProvider({ children }: { children: ReactNode }) {
       move: (id: WinId, x: number, y: number) => dispatch({ type: "move", id, x, y }),
       resetOne: (id: WinId) => dispatch({ type: "resetOne", id }),
       tidy: () => dispatch({ type: "tidy" }),
-      showAll: () => dispatch({ type: "showAll" }),
-      hideAll: () => dispatch({ type: "hideAll" }),
+      showAll: (ids: WinId[] = WIN_IDS) => dispatch({ type: "showAll", ids }),
+      hideAll: (ids: WinId[] = WIN_IDS) => dispatch({ type: "hideAll", ids }),
       dockActivate: (id: WinId) => {
         const w = stateRef.current.wins[id];
         // Closed opens, minimized restores, open-but-behind comes forward.

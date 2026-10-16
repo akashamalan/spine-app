@@ -81,6 +81,10 @@ export type VeraProbe = {
   severity: string;
   target_id: string;
   target_name: string;
+  /** The one person this is really for, or null when it is for a whole team. */
+  asked_of?: string | null;
+  /** Everyone who can answer it, owners first. */
+  aimed_at?: { id: string; name: string; why: string }[];
 };
 
 /** What the graph holds, summed from /api/graph/stats. */

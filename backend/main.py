@@ -13,7 +13,7 @@ from typing import AsyncGenerator
 
 import logging
 
-from fastapi import FastAPI, Query, HTTPException, Request
+from fastapi import Depends, FastAPI, Query, HTTPException, Request
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
@@ -26,6 +26,7 @@ try:  # FalkorDB speaks the Redis protocol; its failures surface as redis errors
 except ImportError:  # pragma: no cover
     _GRAPH_ERRORS = ()
 
+from backend.auth import User, current_user, require_admin
 from backend.utils.graph import ro_query, query, now_epoch
 from backend.utils.confidence import compute_confidence, format_confidence
 from backend.utils.embeddings import embed_text
@@ -154,6 +155,10 @@ async def log_and_guard(request: Request, call_next):
         _log_request(request, response.status_code, started, outcome)
 
     return response
+
+
+from backend.simulate import router as simulate_router  # noqa: E402
+app.include_router(simulate_router)
 
 
 @app.exception_handler(HTTPException)
@@ -681,7 +686,7 @@ async def list_findings(include_resolved: bool = Query(False)):
 # ── Reflex trigger ────────────────────────────────────────────────────────
 
 @app.post("/api/reflexes/run")
-async def trigger_reflexes():
+async def trigger_reflexes(_: User = Depends(require_admin)):
     """Manually trigger all deterministic reflex agents."""
     results = run_all_reflexes()
     return results
@@ -690,8 +695,11 @@ async def trigger_reflexes():
 # ── Vera endpoints ────────────────────────────────────────────────────────
 
 @app.get("/api/vera/probes")
-async def list_probes():
-    """Get all open Vera probes (VerifyTasks needing human answers)."""
+async def list_probes(user: User = Depends(current_user)):
+    """
+    Open Vera probes (VerifyTasks needing human answers). Admins see the
+    whole inbox; a viewer sees only the questions aimed at them.
+    """
     # Exactly one row per VerifyTask, however the joins fan out:
     #  - a finding can FLAG several things (a decay finding flags the claim
     #    and its system), so targets are collected into a list;
@@ -736,7 +744,58 @@ async def list_probes():
             "target_name": primary.get("name"),
         })
 
+    audience = _audience([t["id"] for p in probes for t in p["targets"]])
+    for p in probes:
+        seen: dict[str, dict] = {}
+        for t in p["targets"]:
+            for person in audience.get(t["id"], []):
+                seen.setdefault(person["id"], person)
+        p["aimed_at"] = list(seen.values())
+        # Name one person only when the question is really theirs (they own it,
+        # know it, or it is about them); a team-wide question names nobody.
+        first = p["aimed_at"][0] if p["aimed_at"] else None
+        p["asked_of"] = first["name"] if first and first["why"] != "is on the team" else None
+
+    if not user.is_admin:
+        probes = [p for p in probes
+                  if user.person_id and any(a["id"] == user.person_id for a in p["aimed_at"])]
+
     return {"probes": probes, "count": len(probes)}
+
+
+def _audience(target_ids: list[str]) -> dict[str, list[dict]]:
+    """
+    Who a question about each target is really for, owners first: the people
+    who currently own a system, then the people who know about it; a team's
+    current members; a person is their own audience. People who have left
+    are never asked.
+    """
+    ids = list(dict.fromkeys(i for i in target_ids if i))
+    out: dict[str, list[dict]] = {i: [] for i in ids}
+    if not ids:
+        return out
+
+    def add(tid: str, pid: str, name: str, why: str):
+        if not any(x["id"] == pid for x in out[tid]):
+            out[tid].append({"id": pid, "name": name, "why": why})
+
+    for tid, pid, name in ro_query(
+        """MATCH (p:Person)-[o:OWNS]->(e) WHERE e.id IN $ids AND p.active = true AND o.until IS NULL
+           RETURN e.id, p.id, p.name ORDER BY p.name""", {"ids": ids}).result_set:
+        add(tid, pid, name, "owns it")
+    for tid, pid, name in ro_query(
+        """MATCH (p:Person)-[:KNOWS_ABOUT]->(e) WHERE e.id IN $ids AND p.active = true
+           RETURN e.id, p.id, p.name ORDER BY p.name""", {"ids": ids}).result_set:
+        add(tid, pid, name, "knows about it")
+    for tid, pid, name in ro_query(
+        """MATCH (p:Person)-[:MEMBER_OF]->(t:Team) WHERE t.id IN $ids AND p.active = true
+           RETURN t.id, p.id, p.name ORDER BY p.name""", {"ids": ids}).result_set:
+        add(tid, pid, name, "is on the team")
+    for tid, pid, name in ro_query(
+        """MATCH (p:Person) WHERE p.id IN $ids AND p.active = true RETURN p.id AS tid, p.id AS pid, p.name AS pname""",
+        {"ids": ids}).result_set:
+        add(tid, pid, name, "is the subject")
+    return out
 
 
 VERDICT_SYSTEM = """You interpret a human's free-text answer to a question about whether \
@@ -1373,13 +1432,12 @@ async def vera_history(limit: int = Query(50, ge=1, le=500)):
 
 
 @app.post("/api/vera/ask")
-async def vera_ask(req: VeraAskRequest, request: Request):
+async def vera_ask(req: VeraAskRequest, request: Request, _: User = Depends(require_admin)):
     """
     Admin asks Vera to verify specific claims now. Creates a
     `verification_requested` Finding plus a probe per claim. Layer 3 only.
 
-    NOTE: not access-controlled yet. Roles arrive in Job 2, which should
-    restrict this to admins.
+    Admin-only (enforced by require_admin).
     """
     if not req.claim_ids:
         raise HTTPException(400, "claim_ids must list at least one claim to verify.")

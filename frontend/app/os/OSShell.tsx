@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import type { BackendStatus, VeraProbe } from "../lib/types";
+import type { Identity } from "../lib/identity";
 import { VeraList } from "../components/VeraList";
 import { Dock, type DockEntry, type DockHandle } from "./Dock";
 import { MenuBar } from "./MenuBar";
@@ -17,11 +18,16 @@ export type OSPanels = {
   graph: ReactNode;
   answer: ReactNode;
   ask: ReactNode;
+  /** The admin-only Simulation window. */
+  sim: ReactNode;
 };
 
 type ShellProps = {
   panels: OSPanels;
   probes: VeraProbe[];
+  probesReady: boolean;
+  identity: Identity;
+  onSwitchPerson: () => void;
   onAnswerVera: () => void;
   stats: { knowledgeNodes: number; knowledgeEdges: number };
   findingCount: number;
@@ -45,6 +51,9 @@ export function OSShell(props: ShellProps) {
 function Shell({
   panels,
   probes,
+  probesReady,
+  identity,
+  onSwitchPerson,
   onAnswerVera,
   stats,
   findingCount,
@@ -59,6 +68,10 @@ function Shell({
   const dock = useRef<DockHandle | null>(null);
   const [highlight, setHighlight] = useState<string | null>(null);
   const veraInFront = useIsFocused("vera");
+  const isAdmin = identity.role === "admin";
+  // Windows this person may have. The server still guards what they call;
+  // this is only what is offered.
+  const allowed = WINDOWS.filter((w) => !w.admin || isAdmin).map((w) => w.id);
   const reduce = useReducedMotion();
 
   /** Open a window and bring it forward. */
@@ -94,7 +107,7 @@ function Shell({
         return;
       }
       if (e.altKey && !e.ctrlKey && !e.metaKey) {
-        const hit = WINDOWS.find((w) => String(w.accel) === e.key);
+        const hit = WINDOWS.find((w) => String(w.accel) === e.key && allowed.includes(w.id));
         if (hit) {
           e.preventDefault();
           reveal(hit.id);
@@ -103,7 +116,7 @@ function Shell({
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [focusAsk, reveal]);
+  }, [focusAsk, reveal, allowed]);
 
   // A freshly arrived question stays lit just long enough to be noticed.
   useEffect(() => {
@@ -118,7 +131,7 @@ function Shell({
     return 0;
   };
 
-  const dockItems: DockEntry[] = DOCK_ORDER.map((entry) => {
+  const dockItems: DockEntry[] = DOCK_ORDER.filter((e) => e === "divider" ? isAdmin : allowed.includes(e)).map((entry) => {
     if (entry === "divider") return { separator: true as const };
     const meta = META[entry];
     const w = state.wins[entry];
@@ -137,6 +150,7 @@ function Shell({
     graph: panels.graph,
     answer: panels.answer,
     ask: <div data-ask-root>{panels.ask}</div>,
+    sim: panels.sim,
     vera: (
       <div className="min-h-0 flex-1 overflow-hidden px-5 pb-4 pt-1">
         <VeraList probes={probes} onAnswer={onAnswerVera} highlight={highlight} />
@@ -157,12 +171,15 @@ function Shell({
         isScanning={isScanning}
         onScan={onScan}
         onAskFocus={focusAsk}
+        identity={identity}
+        allowed={allowed}
+        onSwitchPerson={onSwitchPerson}
       />
 
       {/* The desktop: windows live between the menu bar and the dock. */}
       <div className="pointer-events-none fixed inset-0 z-10">
         <AnimatePresence initial={false}>
-          {WIN_IDS.filter((id) => state.ready && state.wins[id].open).map((id) => (
+          {WIN_IDS.filter((id) => allowed.includes(id) && state.ready && state.wins[id].open).map((id) => (
             <Window key={id} id={id} title={META[id].title} bare={id === "ask"}>
               {content[id]}
             </Window>
@@ -198,7 +215,10 @@ function Shell({
       </AnimatePresence>
 
       <VeraNotifications
+        // A different person is a fresh start: none of their list is news.
+        key={`${identity.personId}:${identity.role}`}
         probes={probes}
+        ready={probesReady}
         veraInFront={veraInFront}
         onBounce={() => dock.current?.bounce("vera", 2)}
         onOpenProbe={(taskId) => {

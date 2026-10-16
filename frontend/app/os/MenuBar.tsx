@@ -3,6 +3,9 @@
 import { useEffect, useId, useRef, useState, useSyncExternalStore } from "react";
 import { Check } from "lucide-react";
 import type { BackendStatus } from "../lib/types";
+import type { Identity } from "../lib/identity";
+import { avatarStyle, initials } from "../lib/people";
+import type { WinId } from "./presets";
 import { WINDOWS } from "./windows.config";
 import { useWindows } from "./windowStore";
 
@@ -129,6 +132,9 @@ export function MenuBar({
   isScanning,
   onScan,
   onAskFocus,
+  identity,
+  allowed,
+  onSwitchPerson,
 }: {
   stats: { knowledgeNodes: number; knowledgeEdges: number };
   findingCount: number;
@@ -137,6 +143,10 @@ export function MenuBar({
   isScanning: boolean;
   onScan: () => void;
   onAskFocus: () => void;
+  identity: Identity;
+  /** Windows this person may have. */
+  allowed: WinId[];
+  onSwitchPerson: () => void;
 }) {
   const { state, open, showAll, hideAll, tidy } = useWindows();
   const [openName, setOpenName] = useState<string | null>(null);
@@ -181,7 +191,10 @@ export function MenuBar({
         setOpenName={setOpenName}
         rows={[
           { label: "Ask a question", shortcut: `${mod}+K`, onSelect: onAskFocus },
-          { label: isScanning ? "Scanning…" : "Scan now", onSelect: onScan },
+          ...(identity.role === "admin"
+            ? [{ label: isScanning ? "Scanning…" : "Scan now", onSelect: onScan }]
+            : []),
+          { label: "Switch person", onSelect: onSwitchPerson },
         ]}
       />
       <Menu
@@ -189,8 +202,8 @@ export function MenuBar({
         openName={openName}
         setOpenName={setOpenName}
         rows={[
-          { label: "Show all windows", onSelect: showAll },
-          { label: "Hide all windows", onSelect: hideAll },
+          { label: "Show all windows", onSelect: () => showAll(allowed) },
+          { label: "Hide all windows", onSelect: () => hideAll(allowed) },
           { label: "Tidy windows", onSelect: tidy },
         ]}
       />
@@ -198,7 +211,7 @@ export function MenuBar({
         name="Window"
         openName={openName}
         setOpenName={setOpenName}
-        rows={WINDOWS.map((w) => ({
+        rows={WINDOWS.filter((w) => allowed.includes(w.id)).map((w) => ({
           label: w.short,
           shortcut: `Alt+${w.accel}`,
           checked: state.wins[w.id].open,
@@ -211,19 +224,42 @@ export function MenuBar({
           {stats.knowledgeNodes} facts · {stats.knowledgeEdges} connections · {findingCount} things to look at ·{" "}
           {questionCount} {questionCount === 1 ? "question" : "questions"} for people
         </span>
-        <button
-          type="button"
-          onClick={onScan}
-          disabled={isScanning}
-          className="rounded-md px-2 py-0.5 text-white/80 transition-colors hover:bg-white/10 hover:text-white disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-white"
-        >
-          {isScanning ? "Scanning…" : "Scan now"}
-        </button>
+        {/* Running the reflexes is an administrator's job; the server refuses anyone else. */}
+        {identity.role === "admin" && (
+          <button
+            type="button"
+            onClick={onScan}
+            disabled={isScanning}
+            className="rounded-md px-2 py-0.5 text-white/80 transition-colors hover:bg-white/10 hover:text-white disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-white"
+          >
+            {isScanning ? "Scanning…" : "Scan now"}
+          </button>
+        )}
         <span className="flex items-center gap-1.5 text-white/75">
           <span aria-hidden className={`h-2 w-2 rounded-full ${health}`} />
           {backend.graph === "down"
             ? "SPINE can't reach the graph"
             : `${findingCount} need${findingCount === 1 ? "s" : ""} attention`}
+        </span>
+        <span className="flex items-center gap-2" aria-label={`Signed in as ${identity.name}, ${identity.role === "admin" ? "administrator" : "employee"}`}>
+          <span
+            aria-hidden
+            className="grid h-5 w-5 place-items-center rounded-full text-[9px] font-semibold"
+            style={avatarStyle(identity.name)}
+          >
+            {initials(identity.name)}
+          </span>
+          <span className="hidden text-white/90 md:inline">{identity.name}</span>
+          <span className="rounded-full bg-white/12 px-2 py-px text-[11px] text-white/80">
+            {identity.role === "admin" ? "Admin" : "Employee"}
+          </span>
+          <button
+            type="button"
+            onClick={onSwitchPerson}
+            className="rounded-md px-1.5 py-0.5 text-white/65 transition-colors hover:bg-white/10 hover:text-white focus-visible:outline-2 focus-visible:outline-white"
+          >
+            Switch person
+          </button>
         </span>
         <Clock />
       </div>

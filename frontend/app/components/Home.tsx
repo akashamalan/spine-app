@@ -11,6 +11,8 @@ import { AskBar, askBlockedReason } from "./AskBar";
 import { AnswerView } from "./AnswerView";
 import { VeraList } from "./VeraList";
 import { OSShell } from "../os/OSShell";
+import { Simulation } from "../os/apps/Simulation";
+import { setIdentity, useIdentity } from "../lib/identity";
 import { useSpine } from "../lib/useSpine";
 import { severityLabel } from "../lib/labels";
 
@@ -47,6 +49,7 @@ export function Home({ welcomeDone }: { welcomeDone: boolean }) {
   const spine = useSpine();
   const { findings, hops, probes, selectedFinding, backend, stats } = spine;
   const desktop = useDesktop();
+  const identity = useIdentity();
 
   const [mobileView, setMobileView] = useState<MobileView>("ask");
   const [question, setQuestion] = useState("");
@@ -146,10 +149,28 @@ export function Home({ welcomeDone }: { welcomeDone: boolean }) {
     <div className="spine-dark relative min-h-dvh text-white">
       {welcomeDone && <Backdrop />}
 
-      {desktop === true && (
+      {/* Nobody is picked yet (or "Switch person" was used): the picker is up. */}
+      {desktop === true && identity && (
         <OSShell
-          panels={{ noticed, graph, answer, ask }}
+          panels={{
+            noticed,
+            graph,
+            answer,
+            ask,
+            sim: (
+              <Simulation
+                simulate={spine.simulate}
+                simRunning={spine.simRunning}
+                lastSim={spine.lastSim}
+                findings={findings}
+                probes={probes}
+              />
+            ),
+          }}
           probes={probes}
+          probesReady={spine.probesReady}
+          identity={identity}
+          onSwitchPerson={() => setIdentity(null)}
           onAnswerVera={() => setShowVera(true)}
           stats={stats}
           findingCount={findings.length}

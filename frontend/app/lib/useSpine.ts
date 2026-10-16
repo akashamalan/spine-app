@@ -15,6 +15,7 @@ import type {
   VeraProbe,
 } from "./types";
 import { isSubgraphResponse, type Subgraph } from "../components/graph/model";
+import { apiFetch, getIdentity, useIdentity, type Identity } from "./identity";
 
 export const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
@@ -66,6 +67,35 @@ export function dedupeProbes(probes: VeraProbe[] | undefined): VeraProbe[] {
   });
 }
 
+/** What the last demo scenario did, kept so the Simulation window can show it. */
+const keyOf = (id: Identity | null) => (id ? `${id.personId}:${id.role}` : "");
+
+export type SimRun = {
+  scenario: string;
+  /** Plain sentences about what changed in the company. */
+  changed: string[];
+  /** Findings this run created (not ones it merely refreshed). */
+  newIds: string[];
+  at: number;
+};
+
+/** A finding arriving from the stream or from a simulation: resolved ones
+ * leave the list, ones already known are updated in place, new ones go first. */
+export function mergeFinding(prev: Finding[], finding: Finding): Finding[] {
+  // A finding whose problem has been fixed leaves the Pulse. It is still in
+  // the graph as history — it just stops being reported.
+  if (finding.state === "resolved") return prev.filter((f) => f.finding_id !== finding.finding_id);
+  // Reflexes re-send findings they refresh, so update in place rather than
+  // dropping the newer detail on the floor.
+  const at = prev.findIndex((f) => f.finding_id === finding.finding_id);
+  if (at !== -1) {
+    const next = [...prev];
+    next[at] = finding;
+    return next;
+  }
+  return [finding, ...prev];
+}
+
 export type Spine = {
   findings: Finding[];
   hops: HopEvent[];
@@ -96,6 +126,14 @@ export type Spine = {
   /** Findings resolved in the last 7 days. Null until loaded (not yet known,
    *  distinct from a real zero). */
   resolvedThisWeek: number | null;
+  /** True once the current person's first list of questions has arrived. */
+  probesReady: boolean;
+  /** The most recent demo scenario, if one has run in this visit. */
+  lastSim: SimRun | null;
+  /** The scenario currently running, or null. */
+  simRunning: string | null;
+  /** Run a demo scenario (administrators only; the server enforces it). */
+  simulate: (scenario: string, body?: Record<string, unknown>) => Promise<SimRun | null>;
   /** Walk the graph for an answer. Ignored while another ask is running. */
   ask: (question: string) => Promise<void>;
   /** Abort the running ask. Whatever already arrived stays on screen. */
@@ -145,6 +183,14 @@ export function useSpine(): Spine {
   const [claims, setClaims] = useState<Claim[]>([]);
   const [resolvedThisWeek, setResolvedThisWeek] = useState<number | null>(null);
   const [streamEpoch, setStreamEpoch] = useState(0);
+  // Whose list of questions has been read last. The first list for a person is
+  // never news, so "ready" means "read for the person who is picked now".
+  const [probesReadyFor, setProbesReadyFor] = useState<string | null>(null);
+  const [lastSim, setLastSim] = useState<SimRun | null>(null);
+  const [simRunning, setSimRunning] = useState<string | null>(null);
+  const identity = useIdentity();
+  const identityKey = keyOf(identity);
+  const probesReady = probesReadyFor === identityKey;
   const lastGraphRef = useRef<BackendStatus["graph"]>("unknown");
   const findingsRef = useRef<Finding[]>([]);
   useEffect(() => {
@@ -176,7 +222,7 @@ export function useSpine(): Spine {
         0
       );
 
-    return fetch(`${API_BASE}/api/graph/stats`)
+    return apiFetch(`${API_BASE}/api/graph/stats`)
       .then((r) => r.json())
       .then((data: GraphStatsResponse) => {
         setStats({
@@ -190,11 +236,27 @@ export function useSpine(): Spine {
   }, []);
 
   const refreshProbes = useCallback(() => {
-    return fetch(`${API_BASE}/api/vera/probes`)
+    // The answer belongs to whoever was picked when it was asked for.
+    const asked = keyOf(getIdentity());
+    return apiFetch(`${API_BASE}/api/vera/probes`)
       .then((r) => r.json())
-      .then((data) => setProbes(dedupeProbes(data.probes)))
+      .then((data) => {
+        if (!Array.isArray(data?.probes)) return;
+        setProbes(dedupeProbes(data.probes));
+        setProbesReadyFor(asked);
+      })
       .catch(() => {});
   }, []);
+
+  // A finding arriving is the signal that a question may have been raised
+  // with it. Debounced: a scan sends a burst of findings, one read is enough.
+  const probeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const scheduleProbeRefresh = useCallback(() => {
+    if (probeTimer.current) clearTimeout(probeTimer.current);
+    probeTimer.current = setTimeout(() => {
+      refreshProbes();
+    }, 600);
+  }, [refreshProbes]);
 
   // Backend health. Polled so the app recovers on its own: if the page
   // loads while the backend is down (or it restarts), everything used to
@@ -263,22 +325,8 @@ export function useSpine(): Spine {
 
     eventSource.onmessage = (event) => {
       const finding: Finding = JSON.parse(event.data);
-      setFindings((prev) => {
-        // A finding whose problem has been fixed leaves the Pulse. It is
-        // still in the graph as history — it just stops being reported.
-        if (finding.state === "resolved") {
-          return prev.filter((f) => f.finding_id !== finding.finding_id);
-        }
-        // Reflexes re-send findings they refresh, so update in place
-        // rather than dropping the newer detail on the floor.
-        const at = prev.findIndex((f) => f.finding_id === finding.finding_id);
-        if (at !== -1) {
-          const next = [...prev];
-          next[at] = finding;
-          return next;
-        }
-        return [finding, ...prev];
-      });
+      setFindings((prev) => mergeFinding(prev, finding));
+      scheduleProbeRefresh();
     };
 
     eventSource.onerror = () => {
@@ -291,7 +339,7 @@ export function useSpine(): Spine {
     };
 
     return () => eventSource.close();
-  }, [streamEpoch]);
+  }, [streamEpoch, scheduleProbeRefresh]);
 
   // Toast timer and any running ask die with the component.
   useEffect(() => {
@@ -304,30 +352,32 @@ export function useSpine(): Spine {
   // The idle company map, loaded once the graph is reachable. It lives here,
   // not in the graph panel, so closing and reopening the panel never refetches.
   const graphUp = backend.graph === "up";
-  useEffect(() => {
-    if (!graphUp) return;
-    let cancelled = false;
-    fetch(`${API_BASE}/api/graph/overview`)
+  const loadCompanyMap = useCallback(() => {
+    return apiFetch(`${API_BASE}/api/graph/overview`)
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`overview ${r.status}`))))
       .then((data: unknown) => {
-        if (cancelled) return;
         if (isSubgraphResponse(data)) {
           setCompanyMap(data);
           setCompanyMapFailed(false);
         } else setCompanyMapFailed(true);
       })
-      .catch(() => !cancelled && setCompanyMapFailed(true));
-    return () => {
-      cancelled = true;
-    };
-  }, [graphUp]);
+      .catch(() => setCompanyMapFailed(true));
+  }, []);
+  useEffect(() => {
+    if (graphUp) loadCompanyMap();
+  }, [graphUp, loadCompanyMap]);
+
+  // Switching person changes whose questions are shown, so read them again.
+  useEffect(() => {
+    if (graphUp) refreshProbes();
+  }, [identityKey, graphUp, refreshProbes]);
 
   // Evidence carries no dates; /api/claims does, plus everything the stats
   // strip needs (base_conf, half_life, live confidence). One endpoint, two
   // consumers — loaded fresh whenever an answer arrives, and once up front
   // so the strip has real numbers before anyone asks a question.
   const loadFactDates = useCallback(() => {
-    fetch(`${API_BASE}/api/claims`)
+    apiFetch(`${API_BASE}/api/claims`)
       .then((r) => (r.ok ? r.json() : null))
       .then((data: { claims?: Claim[] } | null) => {
         const list = data?.claims ?? [];
@@ -343,7 +393,7 @@ export function useSpine(): Spine {
   // stream carries (it only reports OPEN problems), so this is its own
   // one-shot read against the same endpoint with include_resolved=true.
   const refreshResolvedCount = useCallback(() => {
-    return fetch(`${API_BASE}/api/findings?include_resolved=true`)
+    return apiFetch(`${API_BASE}/api/findings?include_resolved=true`)
       .then((r) => (r.ok ? r.json() : null))
       .then((data: { findings?: { resolved_at?: number | null }[] } | null) => {
         if (!data) return;
@@ -384,7 +434,7 @@ export function useSpine(): Spine {
     let outcome: AskStatus = "done";
 
     try {
-      const response = await fetch(`${API_BASE}/api/ask`, {
+      const response = await apiFetch(`${API_BASE}/api/ask`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ question: q }),
@@ -441,6 +491,62 @@ export function useSpine(): Spine {
     }
   }, [loadFactDates]);
 
+  /** Run a demo scenario (admin only). The server changes the graph, runs the
+   * reflexes and answers with what it found; those findings land in the same
+   * list the live stream feeds, so the screen updates before the stream does. */
+  const simulate = useCallback(
+    async (scenario: string, body?: Record<string, unknown>): Promise<SimRun | null> => {
+      setSimRunning(scenario);
+      try {
+        const res = await apiFetch(`${API_BASE}/api/simulate/${scenario}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body ?? {}),
+        });
+        const data = await res.json().catch(() => null);
+        if (!res.ok) {
+          showToast({
+            title: res.status === 403 ? "Only administrators can do that." : "That didn't run.",
+            lines: [typeof data?.message === "string" ? data.message : "SPINE's server didn't accept it."],
+          });
+          return null;
+        }
+        const found: Finding[] = (data.findings ?? []).map((f: Finding & { is_new?: boolean }) => {
+          const copy = { ...f };
+          delete copy.is_new; // a note about this run, not part of a finding
+          return copy;
+        });
+        const run: SimRun = {
+          scenario,
+          changed: data.changed ?? [],
+          newIds: (data.findings ?? [])
+            .filter((f: { is_new?: boolean }) => f.is_new)
+            .map((f: { finding_id: string }) => f.finding_id),
+          at: Date.now(),
+        };
+        setLastSim(run);
+        // A reset starts the company over, so what was on screen is replaced.
+        setFindings((prev) =>
+          scenario === "reset" ? found : found.reduce((acc, f) => mergeFinding(acc, f), prev)
+        );
+        await Promise.all([
+          refreshProbes(),
+          refreshGraphStats(),
+          loadFactDates(),
+          refreshResolvedCount(),
+          loadCompanyMap(),
+        ]);
+        return run;
+      } catch {
+        showToast({ title: "That didn't run.", lines: ["SPINE's server didn't answer. Try again in a moment."] });
+        return null;
+      } finally {
+        setSimRunning(null);
+      }
+    },
+    [loadCompanyMap, loadFactDates, refreshGraphStats, refreshProbes, refreshResolvedCount, showToast]
+  );
+
   const stopAsking = useCallback(() => {
     askAbortRef.current?.abort();
   }, []);
@@ -451,7 +557,7 @@ export function useSpine(): Spine {
     setIsScanning(true);
 
     try {
-      const res = await fetch(`${API_BASE}/api/reflexes/run`, {
+      const res = await apiFetch(`${API_BASE}/api/reflexes/run`, {
         method: "POST",
       });
       const data: ScanResponse = await res.json();
@@ -490,7 +596,7 @@ export function useSpine(): Spine {
   const respond = useCallback(
     async (probeId: string, text: string) => {
       try {
-        const res = await fetch(`${API_BASE}/api/vera/respond`, {
+        const res = await apiFetch(`${API_BASE}/api/vera/respond`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -545,7 +651,7 @@ export function useSpine(): Spine {
         ...(reason ? { reason } : {}),
       };
       try {
-        const res = await fetch(`${API_BASE}/api/feedback`, {
+        const res = await apiFetch(`${API_BASE}/api/feedback`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(entry),
@@ -588,6 +694,10 @@ export function useSpine(): Spine {
     companyMapFailed,
     claims,
     resolvedThisWeek,
+    probesReady,
+    lastSim,
+    simRunning,
+    simulate,
     ask,
     stopAsking,
     scan,
