@@ -36,6 +36,7 @@ from backend.tools.answer_tools import (
     resolve_entity, claims_about, replaced_claims_about,
 )
 from backend.agents.reflex_agents import run_all_reflexes, recheck_findings
+from backend.tools import subgraph as sg
 from backend.utils.llm import (
     chat, chat_json, LLMError, llm_status,
     ANSWER_MODEL, CONTRADICTION_MODEL,
@@ -284,6 +285,16 @@ async def graph_stats():
 
 # ── Findings feed (SSE) ──────────────────────────────────────────────────
 
+@app.get("/api/graph/overview")
+async def graph_overview():
+    """
+    The whole company for the idle map: people, teams, services and
+    documents with the relationships between them. No claims, no findings.
+    Same {nodes, edges} shape as the subgraph on /api/ask hop events.
+    """
+    return await asyncio.to_thread(sg.overview)
+
+
 @app.get("/api/findings/stream")
 async def findings_stream():
     """SSE stream of findings — The Pulse."""
@@ -448,6 +459,10 @@ async def ask_question(req: AskRequest, request: Request):
         hop = 1
 
         def sse(payload: dict) -> str:
+            # Additive: every event carries the part of the graph it touched
+            # (empty when a step touches none), for the graph panel.
+            if payload.get("subgraph") is None:
+                payload["subgraph"] = {"nodes": [], "edges": []}
             return f"data: {json.dumps(payload)}\n\n"
 
         # ── Hop 1: Understand the question ───────────────────────────────
@@ -507,7 +522,9 @@ async def ask_question(req: AskRequest, request: Request):
 
         yield sse({"hop": hop, "action": "result", "tool": "resolve_entity",
                    "entity": entity,
-                   "results": [entity] if entity else []})
+                   "results": [entity] if entity else [],
+                   "subgraph": (await asyncio.to_thread(sg.safe, sg.for_entity, entity))
+                               if entity else None})
         hop += 1
 
         if entity is None:
@@ -562,7 +579,20 @@ async def ask_question(req: AskRequest, request: Request):
                 out = entries or await asyncio.to_thread(find_entry_points, question, 5)
                 evidence = out["results"]
 
-            yield sse({"hop": hop, "action": "result", **out})
+            if tool_name == "who_knows":
+                picture = await asyncio.to_thread(sg.safe, sg.for_who_knows, entity_id, out)
+            elif tool_name == "broken_path":
+                picture = await asyncio.to_thread(sg.safe, sg.for_broken_path, entity_id, out)
+            elif tool_name == "check_findings":
+                picture = await asyncio.to_thread(sg.safe, sg.for_findings, entity_id, out)
+            elif tool_name == "blast_radius":
+                picture = await asyncio.to_thread(sg.safe, sg.for_blast_radius, entity_id, out)
+            elif tool_name == "neighbours":
+                picture = await asyncio.to_thread(sg.safe, sg.for_neighbours, entity_id, out)
+            else:  # find_entry_points
+                picture = await asyncio.to_thread(sg.safe, sg.for_entry_points, out, entity_id)
+
+            yield sse({"hop": hop, "action": "result", **out, "subgraph": picture})
             hop += 1
 
         # Always attach claim-level evidence for the entity we landed on.
@@ -592,9 +622,10 @@ async def ask_question(req: AskRequest, request: Request):
         # above, never mixed into `evidence`.
         replaced = await asyncio.to_thread(replaced_claims_about, entity_id, 5)
 
+        picture = await asyncio.to_thread(sg.safe, sg.for_evidence, evidence, replaced, entity_id)
         yield sse({"hop": "final", "action": "answer",
                    "answer": answer, "evidence": evidence,
-                   "replaced": replaced})
+                   "replaced": replaced, "subgraph": picture})
 
     async def generate() -> AsyncGenerator[str, None]:
         # Headers are already sent once streaming starts, so a failure can't
@@ -608,7 +639,8 @@ async def ask_question(req: AskRequest, request: Request):
             request.state.spine_outcome = payload["error"]
             print(f"⚠ /api/ask failed mid-stream: {payload['error']}: {payload['detail']}")
             final = {"hop": "final", "action": "answer", "answer": payload["message"],
-                     "evidence": [], "replaced": [], "error": payload}
+                     "evidence": [], "replaced": [], "error": payload,
+                     "subgraph": {"nodes": [], "edges": []}}
             yield f"data: {json.dumps(final)}\n\n"
 
     return StreamingResponse(generate(), media_type="text/event-stream")
