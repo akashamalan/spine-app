@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { StagePanel } from "./StagePanel";
+import { GraphPanel } from "./graph/GraphPanel";
 import { VeraOverlay } from "./VeraOverlay";
 import { Backdrop } from "./Backdrop";
 import { Bento, type MobileView } from "./Bento";
@@ -87,10 +87,11 @@ export function Home({ welcomeDone }: { welcomeDone: boolean }) {
           />
         }
         graph={
-          <StagePanel
+          <GraphPanel
             hops={hops}
-            isAsking={spine.isAsking}
+            status={spine.askStatus}
             highlightId={selectedFinding?.target_id ?? null}
+            backendUp={backend.graph === "up"}
           />
         }
         answer={
