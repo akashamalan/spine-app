@@ -75,6 +75,7 @@ export function Home({ welcomeDone }: { welcomeDone: boolean }) {
 
       <Bento
         mobileView={mobileView}
+        streaming={spine.askStatus === "asking"}
         left={
           <NoticedPanel
             findings={findings}

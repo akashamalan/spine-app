@@ -221,6 +221,7 @@ export function companyMap(nodes: SGNode[], edges: SGEdge[], size: Size): MapLay
 
   const all = [...groups.values(), noTeam, unowned].filter((g) => g.items.length > 0);
   const usableH = Math.max(CHIP_H * 3, size.height - 24);
+  const usableW = Math.max(CHIP_W + PAD * 2, size.width - 24);
   const rowsFit = Math.max(2, Math.floor((usableH - HEADER - PAD * 2 + CHIP_GAP) / (CHIP_H + CHIP_GAP)));
 
   // Size each island: as few columns as the height allows.
@@ -236,29 +237,34 @@ export function companyMap(nodes: SGNode[], edges: SGEdge[], size: Size): MapLay
     };
   });
 
-  // Stack small islands in the same column when they fit.
+  // Shelf-pack islands left to right, wrapping to a new row of islands once
+  // the panel's width runs out. A single long row (the old behaviour) left
+  // most of a short, wide panel's height unused and forced a tiny zoom to
+  // fit everything's width; packing into both axes keeps the whole map
+  // closer to the panel's own shape, so fitView lands on a bigger, readable
+  // zoom instead of shrinking labels to fit one giant row.
   const positions: Positions = new Map();
   const islands: Island[] = [];
   let x = 0;
-  let colY = 0;
-  let colW = 0;
+  let y = 0;
+  let shelfH = 0;
   for (const s of sized) {
-    if (colY > 0 && colY + s.height > usableH) {
-      x += colW + ISLAND_GAP;
-      colY = 0;
-      colW = 0;
+    if (x > 0 && x + s.width > usableW) {
+      x = 0;
+      y += shelfH + ISLAND_GAP;
+      shelfH = 0;
     }
-    islands.push({ id: s.g.id, label: s.g.label, x, y: colY, width: s.width, height: s.height, warn: s.g.warn });
+    islands.push({ id: s.g.id, label: s.g.label, x, y, width: s.width, height: s.height, warn: s.g.warn });
     s.g.items.forEach((id, i) => {
       const col = Math.floor(i / s.rows);
       const row = i % s.rows;
       positions.set(id, {
         x: x + PAD + col * (CHIP_W + CHIP_GAP) + CHIP_W / 2,
-        y: colY + HEADER + PAD + row * (CHIP_H + CHIP_GAP) + CHIP_H / 2,
+        y: y + HEADER + PAD + row * (CHIP_H + CHIP_GAP) + CHIP_H / 2,
       });
     });
-    colY += s.height + ISLAND_GAP;
-    colW = Math.max(colW, s.width);
+    x += s.width + ISLAND_GAP;
+    shelfH = Math.max(shelfH, s.height);
   }
   return { positions, islands };
 }
