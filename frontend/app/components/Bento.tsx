@@ -53,7 +53,7 @@ export function Bento({
 
   return (
     <div className="relative z-10 h-dvh w-full px-4 pt-[124px] pb-[72px] md:px-6 md:pt-20 md:pb-16">
-      <div className="grid h-full grid-cols-1 grid-rows-[minmax(0,1fr)_auto] gap-4 md:grid-cols-[minmax(260px,1fr)_minmax(0,2.2fr)_minmax(260px,1fr)] md:grid-rows-[minmax(0,1fr)_minmax(0,1.25fr)_auto] md:gap-5">
+      <div className="grid h-full grid-cols-1 grid-rows-[minmax(0,1fr)_auto] gap-4 md:grid-cols-[minmax(260px,1fr)_minmax(0,2.2fr)_minmax(260px,1fr)] md:grid-rows-[minmax(0,0.8fr)_minmax(0,1.6fr)_auto] md:gap-5">
         <Panel
           className={`${on("noticed")} row-span-2 md:col-start-1 md:row-start-1 md:row-span-3`}
           title="What SPINE noticed"

@@ -79,3 +79,17 @@ export type GraphStats = {
 };
 
 export type Toast = { title: string; lines: string[] };
+
+/** A fact that a newer one replaced. Shown as history, never as current. */
+export type ReplacedFact = {
+  claim_id: string;
+  text: string;
+  fact_type?: string;
+  confidence: number;
+  replaced_by?: string | null;
+};
+
+export type AskStatus = "idle" | "asking" | "done" | "stopped" | "error";
+
+/** What happened to a 👎. "local" means the backend didn't take it. */
+export type FeedbackResult = "sent" | "local";

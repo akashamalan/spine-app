@@ -77,9 +77,12 @@ function truncateLabel(label: string, maxLen = 34): { display: string; truncated
 export function StagePanel({
   hops,
   isAsking,
+  highlightId,
 }: {
   hops: HopEvent[];
   isAsking: boolean;
+  /** Graph id of something to point at (e.g. a selected finding's target). */
+  highlightId?: string | null;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const cyContainerRef = useRef<HTMLDivElement>(null);
@@ -87,6 +90,23 @@ export function StagePanel({
   const cyRef = useRef<cytoscape.Core | null>(null);
   const processedHopsRef = useRef(0);
   const seenIdsRef = useRef<Set<string>>(new Set());
+
+  // Point at the highlighted node, if the walk has drawn it.
+  useEffect(() => {
+    // Deferred: the effect that draws new hops runs after this one.
+    const t = setTimeout(() => {
+      const cy = cyRef.current;
+      if (!cy) return;
+      cy.nodes(".highlighted").removeClass("highlighted");
+      if (!highlightId) return;
+      const node = cy.getElementById(slug(highlightId));
+      if (node.nonempty()) {
+        node.addClass("highlighted");
+        cy.animate({ center: { eles: node } }, { duration: 300 });
+      }
+    }, 50);
+    return () => clearTimeout(t);
+  }, [highlightId, hops]);
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -173,6 +193,14 @@ export function StagePanel({
         {
           selector: ".entering",
           style: { opacity: 0 },
+        },
+        {
+          selector: "node.highlighted",
+          style: {
+            "border-color": accent,
+            "border-width": 6,
+            "z-index": 20,
+          } as unknown as cytoscape.Css.Node,
         },
       ],
       layout: { name: "preset" },

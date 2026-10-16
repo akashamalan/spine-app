@@ -2,11 +2,14 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type {
+  AskStatus,
   BackendStatus,
   Evidence,
+  FeedbackResult,
   Finding,
   GraphStats,
   HopEvent,
+  ReplacedFact,
   Toast,
   VeraProbe,
 } from "./types";
@@ -22,6 +25,25 @@ const BOOKKEEPING_EDGES = new Set(["FLAGS", "RAISED_BY", "ANSWERED", "RESOLVED_B
 type ScanResponse = Partial<
   Record<"bus_factor" | "orphans" | "decay" | "contradictions", { finding_id?: string }[]>
 >;
+
+/** The ask stream's last event. `error` is set when the walk failed mid-way. */
+type FinalEvent = HopEvent & {
+  replaced?: ReplacedFact[];
+  error?: { message?: string } | null;
+};
+
+const FEEDBACK_KEY = "spine-feedback";
+
+/** Keep a 👎 the backend couldn't take, so it isn't lost. */
+function storeFeedbackLocally(entry: Record<string, unknown>) {
+  try {
+    const prev = JSON.parse(localStorage.getItem(FEEDBACK_KEY) || "[]");
+    const list = Array.isArray(prev) ? prev : [];
+    localStorage.setItem(FEEDBACK_KEY, JSON.stringify([...list, entry].slice(-50)));
+  } catch {
+    // Storage blocked or full: the thanks still shows, nothing else to do.
+  }
+}
 
 type GraphStatsResponse = {
   nodes?: Record<string, number>;
@@ -47,6 +69,15 @@ export type Spine = {
   hops: HopEvent[];
   answer: string;
   evidence: Evidence[];
+  /** Older facts the answer's subject used to have, newest replacement noted. */
+  replaced: ReplacedFact[];
+  /** When each evidence fact was written (epoch seconds), from /api/claims. */
+  factDates: Record<string, number>;
+  /** The question behind the current answer, for Retry and feedback. */
+  lastQuestion: string;
+  askStatus: AskStatus;
+  /** A plain sentence when the ask failed. */
+  askError: string | null;
   probes: VeraProbe[];
   selectedFinding: Finding | null;
   setSelectedFinding: (finding: Finding | null) => void;
@@ -59,6 +90,9 @@ export type Spine = {
   /** Abort the running ask. Whatever already arrived stays on screen. */
   stopAsking: () => void;
   scan: () => Promise<void>;
+  /** 👎 on the current answer: asks Vera to re-check its facts. */
+  feedback: (reason?: string) => Promise<FeedbackResult>;
+  notify: (toast: Toast) => void;
   /** Send a human's own words to Vera. Resolves true once the backend took it. */
   respond: (probeId: string, text: string) => Promise<boolean>;
   toast: Toast | null;
@@ -74,6 +108,11 @@ export function useSpine(): Spine {
   const [hops, setHops] = useState<HopEvent[]>([]);
   const [answer, setAnswer] = useState<string>("");
   const [evidence, setEvidence] = useState<Evidence[]>([]);
+  const [replaced, setReplaced] = useState<ReplacedFact[]>([]);
+  const [factDates, setFactDates] = useState<Record<string, number>>({});
+  const [lastQuestion, setLastQuestion] = useState("");
+  const [askStatus, setAskStatus] = useState<AskStatus>("idle");
+  const [askError, setAskError] = useState<string | null>(null);
   const [toast, setToast] = useState<Toast | null>(null);
   const [isScanning, setIsScanning] = useState(false);
   const [isAsking, setIsAsking] = useState(false);
@@ -247,6 +286,18 @@ export function useSpine(): Spine {
     };
   }, []);
 
+  // Evidence carries no dates; /api/claims does. Best effort: no dates, no fuss.
+  const loadFactDates = useCallback(() => {
+    fetch(`${API_BASE}/api/claims`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data: { claims?: { id: string; asserted_at?: number | null }[] } | null) => {
+        const dates: Record<string, number> = {};
+        for (const c of data?.claims ?? []) if (c.asserted_at) dates[c.id] = c.asserted_at;
+        setFactDates(dates);
+      })
+      .catch(() => {});
+  }, []);
+
   // Ask a question — SSE walk.
   const ask = useCallback(async (question: string) => {
     const q = question.trim();
@@ -256,9 +307,14 @@ export function useSpine(): Spine {
     askAbortRef.current = ctrl;
     askingRef.current = true;
     setIsAsking(true);
+    setAskStatus("asking");
+    setAskError(null);
+    setLastQuestion(q);
     setHops([]);
     setAnswer("");
     setEvidence([]);
+    setReplaced([]);
+    let outcome: AskStatus = "done";
 
     try {
       const response = await fetch(`${API_BASE}/api/ask`, {
@@ -272,7 +328,7 @@ export function useSpine(): Spine {
       const decoder = new TextDecoder();
       let buffer = "";
 
-      if (!reader) return;
+      if (!reader) throw new Error("No response body");
 
       while (true) {
         const { done, value } = await reader.read();
@@ -284,10 +340,18 @@ export function useSpine(): Spine {
 
         for (const line of lines) {
           if (line.startsWith("data: ")) {
-            const event: HopEvent = JSON.parse(line.slice(6));
+            const event: FinalEvent = JSON.parse(line.slice(6));
             if (event.action === "answer") {
-              setAnswer(event.answer || "");
-              setEvidence(event.evidence || []);
+              if (event.error) {
+                // The walk failed part-way; the backend's message is plain.
+                outcome = "error";
+                setAskError(event.error.message || event.answer || "Something went wrong while I was looking.");
+              } else {
+                setAnswer(event.answer || "");
+                setEvidence(event.evidence || []);
+                setReplaced(event.replaced || []);
+                loadFactDates();
+              }
             } else {
               setHops((prev) => [...prev, event]);
             }
@@ -295,14 +359,20 @@ export function useSpine(): Spine {
         }
       }
     } catch {
-      // Stopped on purpose: not an error, keep what arrived.
-      if (!ctrl.signal.aborted) setAnswer("Error connecting to SPINE backend.");
+      if (ctrl.signal.aborted) {
+        // Stopped on purpose: not an error, keep what arrived.
+        outcome = "stopped";
+      } else {
+        outcome = "error";
+        setAskError("I couldn't reach SPINE's server, so I don't have an answer yet.");
+      }
     } finally {
       if (askAbortRef.current === ctrl) askAbortRef.current = null;
       askingRef.current = false;
       setIsAsking(false);
+      setAskStatus(outcome);
     }
-  }, []);
+  }, [loadFactDates]);
 
   const stopAsking = useCallback(() => {
     askAbortRef.current?.abort();
@@ -378,11 +448,47 @@ export function useSpine(): Spine {
     [refreshGraphStats, refreshProbes, showToast]
   );
 
+  const feedback = useCallback(
+    async (reason?: string): Promise<FeedbackResult> => {
+      const entry = {
+        question: lastQuestion,
+        answer,
+        claim_ids: evidence.map((e) => e.claim_id),
+        ...(reason ? { reason } : {}),
+      };
+      try {
+        const res = await fetch(`${API_BASE}/api/feedback`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(entry),
+        });
+        if (!res.ok) throw new Error(`feedback ${res.status}`);
+        showToast({
+          title: "Thanks — noted.",
+          lines: ["Vera will check these facts with a person."],
+        });
+        // The doubt raised a question for Vera.
+        refreshProbes();
+        return "sent";
+      } catch {
+        storeFeedbackLocally({ ...entry, at: Date.now() });
+        showToast({ title: "Thanks — noted.", lines: [] });
+        return "local";
+      }
+    },
+    [answer, evidence, lastQuestion, refreshProbes, showToast]
+  );
+
   return {
     findings,
     hops,
     answer,
     evidence,
+    replaced,
+    factDates,
+    lastQuestion,
+    askStatus,
+    askError,
     probes,
     selectedFinding,
     setSelectedFinding,
@@ -393,6 +499,8 @@ export function useSpine(): Spine {
     ask,
     stopAsking,
     scan,
+    feedback,
+    notify: showToast,
     respond,
     toast,
     dismissToast,
