@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type {
   AskStatus,
   BackendStatus,
+  Claim,
   Evidence,
   FeedbackResult,
   Finding,
@@ -90,6 +91,11 @@ export type Spine = {
   companyMap: Subgraph | null;
   /** True when the company map could not be loaded. */
   companyMapFailed: boolean;
+  /** Every live claim with its decay inputs and confidence computed now. */
+  claims: Claim[];
+  /** Findings resolved in the last 7 days. Null until loaded (not yet known,
+   *  distinct from a real zero). */
+  resolvedThisWeek: number | null;
   /** Walk the graph for an answer. Ignored while another ask is running. */
   ask: (question: string) => Promise<void>;
   /** Abort the running ask. Whatever already arrived stays on screen. */
@@ -136,6 +142,8 @@ export function useSpine(): Spine {
   });
   const [companyMap, setCompanyMap] = useState<Subgraph | null>(null);
   const [companyMapFailed, setCompanyMapFailed] = useState(false);
+  const [claims, setClaims] = useState<Claim[]>([]);
+  const [resolvedThisWeek, setResolvedThisWeek] = useState<number | null>(null);
   const [streamEpoch, setStreamEpoch] = useState(0);
   const lastGraphRef = useRef<BackendStatus["graph"]>("unknown");
   const findingsRef = useRef<Finding[]>([]);
@@ -314,17 +322,48 @@ export function useSpine(): Spine {
     };
   }, [graphUp]);
 
-  // Evidence carries no dates; /api/claims does. Best effort: no dates, no fuss.
+  // Evidence carries no dates; /api/claims does, plus everything the stats
+  // strip needs (base_conf, half_life, live confidence). One endpoint, two
+  // consumers — loaded fresh whenever an answer arrives, and once up front
+  // so the strip has real numbers before anyone asks a question.
   const loadFactDates = useCallback(() => {
     fetch(`${API_BASE}/api/claims`)
       .then((r) => (r.ok ? r.json() : null))
-      .then((data: { claims?: { id: string; asserted_at?: number | null }[] } | null) => {
+      .then((data: { claims?: Claim[] } | null) => {
+        const list = data?.claims ?? [];
         const dates: Record<string, number> = {};
-        for (const c of data?.claims ?? []) if (c.asserted_at) dates[c.id] = c.asserted_at;
+        for (const c of list) if (c.asserted_at) dates[c.id] = c.asserted_at;
         setFactDates(dates);
+        setClaims(list);
       })
       .catch(() => {});
   }, []);
+
+  // Findings resolved in the last 7 days: not something the live findings
+  // stream carries (it only reports OPEN problems), so this is its own
+  // one-shot read against the same endpoint with include_resolved=true.
+  const refreshResolvedCount = useCallback(() => {
+    return fetch(`${API_BASE}/api/findings?include_resolved=true`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data: { findings?: { resolved_at?: number | null }[] } | null) => {
+        if (!data) return;
+        const cutoff = Date.now() / 1000 - 7 * 86400;
+        const count = (data.findings ?? []).filter(
+          (f) => typeof f.resolved_at === "number" && f.resolved_at >= cutoff
+        ).length;
+        setResolvedThisWeek(count);
+      })
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (!graphUp) return;
+    loadFactDates();
+    refreshResolvedCount();
+    // Only on the up-transition: loadFactDates already re-runs after every
+    // answer, and re-running it here too on every render would be wasteful.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [graphUp]);
 
   // Ask a question — SSE walk.
   const ask = useCallback(async (question: string) => {
@@ -438,7 +477,7 @@ export function useSpine(): Spine {
       });
 
       // The scan writes findings — re-read probes and stats rather than guess.
-      await Promise.all([refreshProbes(), refreshGraphStats()]);
+      await Promise.all([refreshProbes(), refreshGraphStats(), loadFactDates(), refreshResolvedCount()]);
     } catch (err) {
       console.error("Failed to trigger reflexes:", err);
       showToast({ title: "Couldn't run the check.", lines: ["SPINE's server didn't answer. Try again in a moment."] });
@@ -446,7 +485,7 @@ export function useSpine(): Spine {
       scanningRef.current = false;
       setIsScanning(false);
     }
-  }, [refreshGraphStats, refreshProbes, showToast]);
+  }, [loadFactDates, refreshGraphStats, refreshProbes, refreshResolvedCount, showToast]);
 
   const respond = useCallback(
     async (probeId: string, text: string) => {
@@ -466,14 +505,14 @@ export function useSpine(): Spine {
         }
 
         // The graph may have changed — re-read it rather than guessing.
-        await Promise.all([refreshProbes(), refreshGraphStats()]);
+        await Promise.all([refreshProbes(), refreshGraphStats(), loadFactDates(), refreshResolvedCount()]);
         return true;
       } catch (err) {
         console.error("Failed to respond to probe:", err);
         return false;
       }
     },
-    [refreshGraphStats, refreshProbes, showToast]
+    [loadFactDates, refreshGraphStats, refreshProbes, refreshResolvedCount, showToast]
   );
 
   const feedback = useCallback(
@@ -526,6 +565,8 @@ export function useSpine(): Spine {
     stats,
     companyMap,
     companyMapFailed,
+    claims,
+    resolvedThisWeek,
     ask,
     stopAsking,
     scan,

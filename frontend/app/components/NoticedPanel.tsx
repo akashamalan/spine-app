@@ -3,7 +3,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { Star } from "lucide-react";
-import type { Finding } from "../lib/types";
+import type { Claim, Finding } from "../lib/types";
+import { StatsStrip } from "./StatsStrip";
 import {
   displayName,
   findingLabel,
@@ -50,10 +51,14 @@ export function NoticedPanel({
   findings,
   selected,
   onSelect,
+  claims,
+  resolvedThisWeek,
 }: {
   findings: Finding[];
   selected: Finding | null;
   onSelect: (finding: Finding | null) => void;
+  claims: Claim[];
+  resolvedThisWeek: number | null;
 }) {
   const reduce = useReducedMotion();
   const [filter, setFilter] = useState<Filter>(null);
@@ -111,20 +116,35 @@ export function NoticedPanel({
 
   const enter = reduce ? { opacity: 0 } : { opacity: 0, x: -16 };
 
+  const statsStrip = (
+    <StatsStrip
+      busFactorCount={counts.bus_factor ?? 0}
+      orphanCount={counts.orphan ?? 0}
+      claims={claims}
+      resolvedThisWeek={resolvedThisWeek}
+      activeFilter={filter === "bus_factor" || filter === "orphan" ? filter : null}
+      onToggleFilter={(f) => setFilter((prev) => (prev === f ? null : f))}
+    />
+  );
+
   if (findings.length === 0) {
     return (
-      <div className="flex flex-1 flex-col items-start justify-center gap-2 px-6 pb-8">
-        <span aria-hidden className="h-2.5 w-2.5 rounded-full bg-fresh" />
-        <p className="text-[17px] font-semibold">All clear. SPINE is watching.</p>
-        <p className="text-[15px] text-white/75">
-          It checks your company&apos;s knowledge on its own. Anything that needs a person will show up here.
-        </p>
+      <div className="flex min-h-0 flex-1 flex-col">
+        {statsStrip}
+        <div className="flex flex-1 flex-col items-start justify-center gap-2 px-6 pb-8">
+          <span aria-hidden className="h-2.5 w-2.5 rounded-full bg-fresh" />
+          <p className="text-[17px] font-semibold">All clear. SPINE is watching.</p>
+          <p className="text-[15px] text-white/75">
+            It checks your company&apos;s knowledge on its own. Anything that needs a person will show up here.
+          </p>
+        </div>
       </div>
     );
   }
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
+      {statsStrip}
       {/* Category chips: tap to filter, tap again to show everything. */}
       <div role="group" aria-label="Filter problems" className="flex shrink-0 flex-wrap gap-1.5 px-5 pb-3">
         {CATEGORIES.map((cat) => {

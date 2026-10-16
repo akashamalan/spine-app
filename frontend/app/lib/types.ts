@@ -18,6 +18,21 @@ export type Finding = {
   target_name?: string;
 };
 
+/** One row from GET /api/claims — a live fact, decayed and scored right now. */
+export type Claim = {
+  id: string;
+  text: string;
+  fact_type: string;
+  base_conf: number;
+  asserted_at: number;
+  half_life_days: number;
+  age_days: number | null;
+  confidence: number;
+  stale: boolean;
+  about: { id: string; type: string; name: string } | null;
+  source: string | null;
+};
+
 export type Evidence = {
   claim_id: string;
   text: string;

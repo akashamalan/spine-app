@@ -85,6 +85,8 @@ export function Home({ welcomeDone }: { welcomeDone: boolean }) {
               // On a phone the detail lives in the Ask view.
               if (f) setMobileView("ask");
             }}
+            claims={spine.claims}
+            resolvedThisWeek={spine.resolvedThisWeek}
           />
         }
         graph={
