@@ -48,7 +48,6 @@ function item(
   return { type: "item", id, label, onSelect, ...more };
 }
 
-const first = (name: string) => name.trim().split(/\s+/)[0] || name;
 const ONLY_ADMINS = "Only administrators can do this.";
 
 /** A person's age as plain words, for the document menu. */
@@ -165,7 +164,6 @@ function build({ a, win, showPopover }: Env): Menus {
 
     node: (n, pt) => {
       const name = n.label;
-      const nick = first(name);
       const common = [
         item("hl", "Highlight on the graph", () => a.highlight(n.id), { icon: icon(Network) }),
         item("copy", n.type === "document" ? "Copy title" : "Copy name", () => a.copy(name, "Name")),
@@ -175,12 +173,6 @@ function build({ a, win, showPopover }: Env): Menus {
         // Ownership facts that name them: what Vera could ask about.
         const named = a.claims.filter((c) => c.fact_type === "ownership" && c.text.includes(name));
         return [
-          n.left
-            ? item("ask1", `Who took over from ${nick}?`, () => a.askSpine(`Who took over from ${name}?`, { source: "graph" }))
-            : item("ask1", `What does ${nick} own?`, () => a.askSpine(`What does ${name} own?`, { source: "graph" })),
-          item("ask2", `What breaks if ${nick} leaves?`, () => a.askSpine(`What breaks if ${name} leaves?`, { source: "graph" }), {
-            disabled: n.left ? `${nick} has already left.` : false,
-          }),
           item("card", "Show their card", () => showPopover(pt, createElement(PersonCard, { id: n.id, fallbackName: name }), name)),
           sep,
           ...common,
@@ -189,7 +181,7 @@ function build({ a, win, showPopover }: Env): Menus {
                 sep,
                 item("vera", "Ask Vera to check with them", () => void a.veraAsk(named.map((c) => c.id), `About ${name}`), {
                   disabled: named.length ? false : "No ownership fact names them.",
-                  confirm: `Ask Vera to check ${named.length} ${named.length === 1 ? "fact" : "facts"} naming ${nick} with a person? This sends a question; it changes no fact.`,
+                  confirm: `Ask Vera to check ${named.length} ${named.length === 1 ? "fact" : "facts"} naming ${name} with a person? This sends a question; it changes no fact.`,
                   icon: icon(MessageCircleQuestion),
                 }),
               ]
