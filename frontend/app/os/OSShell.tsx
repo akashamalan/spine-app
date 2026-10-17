@@ -267,7 +267,14 @@ function Shell({
   const content: Record<WinId, ReactNode> = {
     noticed: panels.noticed,
     graph: panels.graph,
-    answer: panels.answer,
+    // Unlike Bento (where the Panel wrapper supplies px-6), a window's
+    // content div gives no horizontal padding of its own, so the answer
+    // needs its own, matching Vera's wrapper below.
+    answer: (
+      <div className="min-h-0 flex-1 overflow-hidden px-5 pb-4 pt-1">
+        {panels.answer}
+      </div>
+    ),
     ask: <div data-ask-root>{panels.ask}</div>,
     sim: panels.sim,
     directory: <Directory refreshKey={refreshKey} />,

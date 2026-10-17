@@ -53,7 +53,7 @@ function Note({
       onFocusCapture={() => setPaused(true)}
       onBlurCapture={() => setPaused(false)}
       role="status"
-      className="glass-strong pointer-events-auto w-[320px] rounded-2xl p-3.5 shadow-2xl"
+      className="glass-strong pointer-events-auto w-[320px] rounded-2xl px-5 py-3.5 shadow-2xl"
     >
       <p className="text-[13px] text-white/70">
         Vera is asking{" "}

@@ -235,7 +235,7 @@ function Popover({
       aria-label={title ?? "Details"}
       data-ctx-pop=""
       style={{ visibility: "hidden" }}
-      className="glass-strong ctx-pop fixed z-[210] w-[340px] max-w-[calc(100vw-16px)] rounded-2xl p-4 text-white shadow-2xl"
+      className="glass-strong ctx-pop fixed z-[210] w-[340px] max-w-[calc(100vw-16px)] rounded-2xl px-5 py-4 text-white shadow-2xl"
     >
       <div className="mb-2 flex items-start justify-between gap-3">
         {title && <h3 className="text-[15px] font-semibold leading-snug">{title}</h3>}
