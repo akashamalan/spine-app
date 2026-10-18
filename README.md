@@ -83,7 +83,7 @@ Only a person's answer changed what SPINE believes.
 SPINE looks like a small desktop: draggable windows, a menu bar on top, and a dock at the bottom.
 
 ### Welcome screen
-![Welcome screen](docs/screenshots/01-welcome.png)
+![Welcome screen]([docs/screenshots/01-welcome.png](https://drive.google.com/thumbnail?id=1BsLY2mdiBOZdWmVEChjCMQlwzqqKkgEA&sz=s4000))
 <!-- IMAGE 01: welcome screen with the changing words. Arrow: "Press Enter to start" -->
 
 The first thing you see. Press Enter to open the workspace.
