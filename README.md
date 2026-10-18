@@ -114,7 +114,7 @@ A dock keeps every tool one click away, without using screen space when you do n
 Ask "Who owns the billing service?" and the graph draws the path, hop by hop. Someone who has **left the company** shows as a faded ghost. Click **Show how I did this** to see the real Cypher query behind every step.
 
 ### Every number can be explained
-![Confidence math](docs/screenshots/07-confidence-math.png)
+![Confidence math](https://github.com/akashamalan/spine-app/blob/97a4e028ab28ed3a29b3c5c2675ecfc0346ee214/Assets/Screenshot%202026-10-18%20232648.png)
 <!-- IMAGE 07: the confidence-math popover. Arrow: "Why is this flagged?" -->
 
 Right-click a finding and choose **Why is this flagged?**. SPINE shows how it got its confidence number, step by step, using the real values.
@@ -126,7 +126,7 @@ Right-click a finding and choose **Why is this flagged?**. SPINE shows how it go
 An admin can make a person leave, let time pass, add conflicting documents, or add an orphan service. SPINE notices live, with no page refresh.
 
 ### Facts and Activity
-![Facts and Activity](docs/screenshots/09-facts-activity.png)
+![Facts and Activity](https://github.com/akashamalan/spine-app/blob/97a4e028ab28ed3a29b3c5c2675ecfc0346ee214/Assets/Screenshot%202026-10-18%20232927.png)
 <!-- IMAGE 09: Facts (least trusted first) and Activity. Arrows: "Facts", "A person's words" -->
 
 - **Facts:** every fact SPINE believes, least trusted first, with its confidence bar and age.
@@ -319,6 +319,10 @@ docker run -p 6379:6379 -p 3000:3000 falkordb/falkordb:latest
 - Vera asks inside the app. Slack or Teams is future work.
 
 **What's next.** Real integrations (Slack, GitHub, docs), real sign-in, scale tests, and Vera asking people in the tools they already use.
+
+## Date Of teh Project Started
+![The Created Folder](https://github.com/akashamalan/spine-app/blob/f672ebe176fc2ee92bda4cc1d2ccc0e0a1ffdb40/Assets/Screenshot%202026-10-18%20233213.png)
+
 
 ## Credits and team
 
