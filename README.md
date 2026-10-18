@@ -7,7 +7,7 @@ Built for **Graph Hacks 2026** (WeMakeDevs x FalkorDB) by **Akash Amalan, team N
 
 **Demo video:** [PASTE YOUTUBE LINK] · **Blog post:** [PASTE BLOG LINK]
 
-![The SPINE desktop](file:///C:/Users/akash/OneDrive/Pictures/Screenshots/Screenshot%202026-10-18%20142302.png)
+![The SPINE desktop](https://drive.google.com/file/d/1bLKcw4M0uboyD8TNTztT6qnWkF1wMSYM/view?usp=sharing)
 <!-- IMAGE 02: the whole desktop with windows, menu bar and dock. Arrows: "Menu bar", "Windows", "Dock" -->
 
 ---
