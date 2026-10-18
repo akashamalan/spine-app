@@ -83,7 +83,7 @@ Only a person's answer changed what SPINE believes.
 SPINE looks like a small desktop: draggable windows, a menu bar on top, and a dock at the bottom.
 
 ### Welcome screen
-![Welcome screen]([docs/screenshots/01-welcome.png](https://drive.google.com/thumbnail?id=1BsLY2mdiBOZdWmVEChjCMQlwzqqKkgEA&sz=s4000))
+![Welcome screen](https://github.com/akashamalan/spine-app/blob/32288421c3886ea3f54a845243e16a9cb1555957/Assets/Screenshot%202026-10-18%20135505.png)
 <!-- IMAGE 01: welcome screen with the changing words. Arrow: "Press Enter to start" -->
 
 The first thing you see. Press Enter to open the workspace.
@@ -91,7 +91,7 @@ The first thing you see. Press Enter to open the workspace.
 ### Why a dock?
 A dock keeps every tool one click away, without using screen space when you do not need it. A new employee should not have to hunt for "where do I ask a question?" or "where do I see what is flagged?". The dock puts **Ask, the Graph, What SPINE noticed and Vera** in the same place every time. It is a pattern people already know from their own computer, so there is nothing new to learn.
 
-![The dock](docs/screenshots/03-navigation-search.png)
+![The dock](https://github.com/akashamalan/spine-app/blob/32288421c3886ea3f54a845243e16a9cb1555957/Assets/Screenshot%202026-10-17%20121715.png)
 <!-- IMAGE 03: close-up of the menu bar, ask bar and dock. Arrows: "Navigation", "Search" -->
 
 - **Menu bar (top):** File, View, Window, Help, live numbers, "Scan now", who you are, and "Switch person". It stays fixed, so you are never far from asking a question.
@@ -99,23 +99,19 @@ A dock keeps every tool one click away, without using screen space when you do n
 - **Dock (bottom):** one icon per tool. A small dot means the window is open. A red number is something waiting for you.
 
 ### What SPINE noticed, and Vera
-![Findings and Vera](docs/screenshots/04-noticed-vera.png)
+![Findings and Vera](https://github.com/akashamalan/spine-app/blob/32288421c3886ea3f54a845243e16a9cb1555957/Assets/Screenshot%202026-10-18%20135726.png)
+
+![Findings and Vera](https://github.com/akashamalan/spine-app/blob/32288421c3886ea3f54a845243e16a9cb1555957/Assets/Screenshot%202026-10-18%20135757.png)
 <!-- IMAGE 04: findings on the left, Vera's questions on the right. Arrows: "What SPINE noticed", "Vera" -->
 
 - **What SPINE noticed (left):** problems the patrol agents found on their own, before anyone asked. Five live numbers sit at the top: facts up to date, single points of failure, nobody looks after, average fact age, fixed this week.
 - **Vera (right):** questions SPINE has for real people, when a fact looks doubtful.
 
 ### The graph: the path SPINE walked
-![The graph path](docs/screenshots/05-graph-path.png)
+![The graph path](https://github.com/akashamalan/spine-app/blob/32288421c3886ea3f54a845243e16a9cb1555957/Assets/Screenshot%202026-10-18%20135850.png)
 <!-- IMAGE 05: graph drawing the path for "Who owns the billing service?". Arrow: "The path SPINE walked" -->
 
 Ask "Who owns the billing service?" and the graph draws the path, hop by hop. Someone who has **left the company** shows as a faded ghost. Click **Show how I did this** to see the real Cypher query behind every step.
-
-### Right-click for actions
-![Right-click menu](docs/screenshots/06-right-click.png)
-<!-- IMAGE 06: right-click menu on a person in the graph. Arrow: "Right-click for actions" -->
-
-Right-click almost anything: a person, a service, a document, a finding, or the answer text.
 
 ### Every number can be explained
 ![Confidence math](docs/screenshots/07-confidence-math.png)
@@ -124,7 +120,7 @@ Right-click almost anything: a person, a service, a document, a finding, or the 
 Right-click a finding and choose **Why is this flagged?**. SPINE shows how it got its confidence number, step by step, using the real values.
 
 ### Simulation: make a change, watch SPINE notice
-![Simulation](docs/screenshots/08-simulation.png)
+![Simulation](https://github.com/akashamalan/spine-app/blob/32288421c3886ea3f54a845243e16a9cb1555957/Assets/Screenshot%202026-10-18%20135917.png)
 <!-- IMAGE 08: the Simulation window with new findings appearing. Arrow: "Make a change, watch SPINE notice" -->
 
 An admin can make a person leave, let time pass, add conflicting documents, or add an orphan service. SPINE notices live, with no page refresh.
@@ -137,7 +133,7 @@ An admin can make a person leave, let time pass, add conflicting documents, or a
 - **Activity:** a feed of what happened. When a person answers Vera, their **exact words** are shown next to the fact they replaced.
 
 ### Who are you?
-![Who are you](docs/screenshots/10-who-are-you.png)
+![Who are you](https://github.com/akashamalan/spine-app/blob/32288421c3886ea3f54a845243e16a9cb1555957/Assets/Screenshot%202026-10-18%20135515.png)
 <!-- IMAGE 10: the "Who are you?" picker. Arrow: "Switch person" -->
 
 Pick a person and a role (admin or viewer). You can switch at any time from the menu bar.
