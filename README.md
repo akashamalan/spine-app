@@ -5,9 +5,10 @@
 Built for **Graph Hacks 2026** (WeMakeDevs x FalkorDB) by **Akash Amalan, team Nexis 3.0**.
 **Tracks entered:** 03 Company Brain (main) · 01 Agents That Act on Connected Data · 02 Agent Memory and Coordination
 
-**Demo video:** [PASTE YOUTUBE LINK] · **Blog post:** [PASTE BLOG LINK]
+**Demo link:** [(https://spine-app-teal.vercel.app)] · **Blog post:** [[PASTE BLOG LINK]()] . **Demo Video:** [PASTE YOUTUBE LINK]
 
-![The SPINE desktop](https://drive.google.com/file/d/1bLKcw4M0uboyD8TNTztT6qnWkF1wMSYM/view?usp=sharing)
+![The SPINE desktop](https://github.com/akashamalan/spine-app/blob/e2bda832ff8fc59cc654da24a58d8d2751c91c44/Assets/Desktop.png)
+
 <!-- IMAGE 02: the whole desktop with windows, menu bar and dock. Arrows: "Menu bar", "Windows", "Dock" -->
 
 ---
@@ -82,7 +83,7 @@ Only a person's answer changed what SPINE believes.
 SPINE looks like a small desktop: draggable windows, a menu bar on top, and a dock at the bottom.
 
 ### Welcome screen
-![Welcome screen](docs/screenshots/01-welcome.png)
+![Welcome screen]([docs/screenshots/01-welcome.png](https://drive.google.com/thumbnail?id=1BsLY2mdiBOZdWmVEChjCMQlwzqqKkgEA&sz=s4000))
 <!-- IMAGE 01: welcome screen with the changing words. Arrow: "Press Enter to start" -->
 
 The first thing you see. Press Enter to open the workspace.
