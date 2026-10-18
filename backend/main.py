@@ -180,12 +180,20 @@ async def validation_error(request: Request, exc: RequestValidationError):
 
 # Added last so it is the outermost layer: CORS headers are applied even to
 # the JSON error responses produced above.
+_allowed_origins_raw = os.getenv("ALLOWED_ORIGINS", "http://localhost:3000")
+_allowed_origins = [o.strip() for o in _allowed_origins_raw.split(",") if o.strip()] or ["http://localhost:3000"]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=_allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
-    allow_headers=["*"],
+    allow_headers=[
+        "Content-Type",
+        "X-Spine-Person",
+        "X-Spine-Role",
+        "X-Spine-Name",
+    ],
 )
 
 
