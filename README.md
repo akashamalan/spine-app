@@ -7,7 +7,7 @@ Built for **Graph Hacks 2026** (WeMakeDevs x FalkorDB) by **Akash Amalan, team N
 
 **Demo link:** [(https://spine-app-teal.vercel.app)] · **Blog post:** [(https://dev.to/akashamalan989/spine-the-company-brain-that-asks-you-57cd)] . **Demo Video:** [(https://youtu.be/tcZuIt4tGgs)]
 
-![The SPINE desktop](https://github.com/akashamalan/spine-app/blob/e2bda832ff8fc59cc654da24a58d8d2751c91c44/Assets/Desktop.png)
+![The SPINE desktop](https://github.com/akashamalan/spine-app/blob/574670230fd6592a4f15c65ca799adedb4b3dada/Assets/Screenshot%202026-10-17%20154627.png)
 
 <!-- IMAGE 02: the whole desktop with windows, menu bar and dock. Arrows: "Menu bar", "Windows", "Dock" -->
 
