@@ -320,7 +320,7 @@ docker run -p 6379:6379 -p 3000:3000 falkordb/falkordb:latest
 
 **What's next.** Real integrations (Slack, GitHub, docs), real sign-in, scale tests, and Vera asking people in the tools they already use.
 
-## Date Of teh Project Started
+## Date Of the Project Started
 ![The Created Folder](https://github.com/akashamalan/spine-app/blob/f672ebe176fc2ee92bda4cc1d2ccc0e0a1ffdb40/Assets/Screenshot%202026-10-18%20233213.png)
 
 
