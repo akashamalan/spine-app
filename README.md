@@ -7,7 +7,7 @@ Built for **Graph Hacks 2026** (WeMakeDevs x FalkorDB) by **Akash Amalan, team N
 
 **Demo video:** [PASTE YOUTUBE LINK] · **Blog post:** [PASTE BLOG LINK]
 
-![The SPINE desktop](docs/screenshots/02-desktop.png)
+![The SPINE desktop](https://drive.google.com/file/d/1bLKcw4M0uboyD8TNTztT6qnWkF1wMSYM/view?usp=sharing)
 <!-- IMAGE 02: the whole desktop with windows, menu bar and dock. Arrows: "Menu bar", "Windows", "Dock" -->
 
 ---
@@ -55,7 +55,7 @@ This is what makes SPINE different from a chatbot.
 
 ```
 Layer 3  Meta       Findings, tasks, agent runs, responses   <- agents may write here
-Layer 2  Semantic   Claims: "Sam owns billing" + confidence  <- ONLY a human answer can change this
+Layer 2  Semantic   Claims: "Priya owns billing" + confidence <- ONLY a human answer can change this
 Layer 1  Source     People, teams, services, documents
 ```
 
@@ -66,6 +66,16 @@ Layer 1  Source     People, teams, services, documents
 An AI cannot quietly rewrite the company's memory. It can only ask a human.
 
 ---
+
+## The demo in one minute
+
+1. Ask **"Who owns the billing service?"**. SPINE draws the path it walked. **Priya Sharma**, the listed owner, shows as a faded ghost with "Left in Jul 2026", because she has left the company. Nobody has taken over, so SPINE says so instead of guessing.
+2. In **What SPINE noticed**, a finding says nobody looks after the billing service.
+3. Open the **Simulation** window and make something happen (for example "Sam Okafor leaves the company"). SPINE notices on its own, with no refresh.
+4. **Vera** asks a real person: *"Is this still true? Priya Sharma is the primary owner of the billing service."*
+5. The person answers in their own words (for example: "No, Dana Kim owns billing now."). SPINE stores those exact words and marks the old fact **replaced**. Nothing is deleted.
+
+Only a person's answer changed what SPINE believes.
 
 ## A tour of the screen
 
@@ -160,7 +170,7 @@ One FalkorDB graph called `spine`, in three layers.
 
 | Node | Meaning |
 |---|---|
-| `Claim` | One fact, for example "Sam owns billing-service". It has `base_conf`, `asserted_at`, `half_life_days` and a type. |
+| `Claim` | One fact, for example "Priya Sharma owns billing-service". It has `base_conf`, `asserted_at`, `half_life_days` and a type. |
 
 **Layer 3: Meta (what SPINE noticed and did)**
 
