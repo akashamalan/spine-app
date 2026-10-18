@@ -5,8 +5,12 @@
 Built for **Graph Hacks 2026** (WeMakeDevs x FalkorDB) by **Akash Amalan, team Nexis 3.0**.
 **Tracks entered:** 03 Company Brain (main) · 01 Agents That Act on Connected Data · 02 Agent Memory and Coordination
 
-**Demo link:** https://spine-app-teal.vercel.app ,
+**Demo link:** https://spine-app-teal.vercel.app,
+
+
 **Blog post:** https://dev.to/akashamalan989/spine-the-company-brain-that-asks-you-57cd ,
+
+
 **Demo Video:** https://youtu.be/tcZuIt4tGgs
 
 ![The SPINE desktop](https://github.com/akashamalan/spine-app/blob/574670230fd6592a4f15c65ca799adedb4b3dada/Assets/Screenshot%202026-10-17%20154627.png)
