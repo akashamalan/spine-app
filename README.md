@@ -5,7 +5,9 @@
 Built for **Graph Hacks 2026** (WeMakeDevs x FalkorDB) by **Akash Amalan, team Nexis 3.0**.
 **Tracks entered:** 03 Company Brain (main) · 01 Agents That Act on Connected Data · 02 Agent Memory and Coordination
 
-**Demo link:** [(https://spine-app-teal.vercel.app)] · **Blog post:** [(https://dev.to/akashamalan989/spine-the-company-brain-that-asks-you-57cd)] . **Demo Video:** [(https://youtu.be/tcZuIt4tGgs)]
+**Demo link:** (https://spine-app-teal.vercel.app) ,
+**Blog post:** (https://dev.to/akashamalan989/spine-the-company-brain-that-asks-you-57cd) ,
+**Demo Video:** (https://youtu.be/tcZuIt4tGgs)
 
 ![The SPINE desktop](https://github.com/akashamalan/spine-app/blob/574670230fd6592a4f15c65ca799adedb4b3dada/Assets/Screenshot%202026-10-17%20154627.png)
 
@@ -327,7 +329,7 @@ docker run -p 6379:6379 -p 3000:3000 falkordb/falkordb:latest
 ## Credits and team
 
 - [FalkorDB](https://www.falkordb.com/) and [WeMakeDevs](https://www.wemakedevs.org/) for the hackathon
-- [React Bits](https://reactbits.dev/) for the animated background and dock (adapted) [CHECK THEIR LICENSE]
+- [React Bits](https://reactbits.dev/) for the animated background and dock (adapted) 
 - [Groq](https://groq.com/) for fast language models
 - [React Flow](https://reactflow.dev/) for the graph
 
